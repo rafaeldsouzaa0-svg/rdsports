@@ -62,6 +62,10 @@ const CSS_TREINO = `
   }
 `
 
+/** Quadra vazia, pra desenhar à mão na ficha impressa. */
+function quadraVaziaSvg(): string {
+  return `<div class="quadro-court"><div class="linha" style="left:33.33%"></div><div class="net" style="left:50%"></div><div class="linha" style="left:66.66%"></div></div>`
+}
 
 function corLinhaDesenho(tipo: LinhaDesenhoTipo): string {
   return tipo === 'saque_ataque' ? '#e74c3c' : tipo === 'toque_passe' ? '#3498db' : '#d4af37'
@@ -347,9 +351,16 @@ export function gerarHtmlFichaTreino(
   sessao: SessaoTreino,
   turma: Pick<Turma, 'nome'>,
   escola: Pick<Escola, 'nome'>,
-  opcoes: { paraSubstituto?: boolean } = {},
+  opcoes: {
+    paraSubstituto?: boolean
+    /** Com os quadros em branco (pedido 11/11/2026: opção de compartilhar com
+     *  e sem). Mostra os 11 quadros e uma quadra vazia nos exercícios sem
+     *  desenho, pra desenhar à mão. Padrão: só o que foi preenchido. */
+    incluirQuadrosEmBranco?: boolean
+  } = {},
 ): string {
   const paraSubstituto = !!opcoes.paraSubstituto
+  const comBranco = !!opcoes.incluirQuadrosEmBranco
   const temasSelecionados = sessao.temas.map((id) => TEMAS_TREINO.find((t) => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t)
   const temaPrincipal = temasSelecionados[0]
   const condicionantesSelecionadas = sessao.condicionantes.map((id) => CONDICIONANTES_TREINO.find((c) => c.id === id)).filter((c): c is NonNullable<typeof c> => !!c)
@@ -394,10 +405,12 @@ export function gerarHtmlFichaTreino(
     </div>`
 
   // Só os quadros preenchidos, nas duas fichas (pedido 11/11/2026: "os em
-  // branco eu não quero que mande").
+  // branco eu não quero que mande") — a não ser que peça com os em branco.
   const quadroPreenchido = (q: SessaoTreino['quadros'][number] | undefined) =>
     !!q && !!(q.nome?.trim() || q.objetivo?.trim() || q.comoFunciona?.trim() || q.tempoMin || (q.desenho && q.desenho.elementos.length > 0))
-  const slotsVisiveis = QUADRO_SLOTS.filter((slot) => quadroPreenchido(sessao.quadros.find((x) => x.chave === slot.chave)))
+  const slotsVisiveis = comBranco
+    ? QUADRO_SLOTS
+    : QUADRO_SLOTS.filter((slot) => quadroPreenchido(sessao.quadros.find((x) => x.chave === slot.chave)))
 
   const quadrosHtml = slotsVisiveis.map((slot) => {
     const q = sessao.quadros.find((x) => x.chave === slot.chave)
@@ -405,7 +418,7 @@ export function gerarHtmlFichaTreino(
       <div class="quadro-card">
         <div class="quadro-head"><span>${escapeHtml(slot.grupoLabel)}</span><span>${q?.tempoMin ? `${q.tempoMin} min` : ''}</span></div>
         <div class="quadro-nome">${q?.nome ? escapeHtml(q.nome) : ''}</div>
-        ${q?.desenho && q.desenho.elementos.length > 0 ? quadraSequenciaHtml(q.desenho) : ''}
+        ${q?.desenho && q.desenho.elementos.length > 0 ? quadraSequenciaHtml(q.desenho) : comBranco ? quadraVaziaSvg() : ''}
         ${q?.objetivo ? `<div class="quadro-foot">Obj.: ${escapeHtml(q.objetivo)}</div>` : ''}
         ${q?.comoFunciona?.trim() ? `<div class="quadro-como"><b>Como funciona:</b> ${escapeHtml(q.comoFunciona.trim())}</div>` : ''}
       </div>`

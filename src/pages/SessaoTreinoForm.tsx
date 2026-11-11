@@ -139,10 +139,10 @@ export default function SessaoTreinoForm() {
   }
 
   /** Manda a ficha pro auxiliar que vai dar o treino (pedido 11/11/2026). */
-  async function compartilharComSubstituto() {
+  async function compartilharComSubstituto(incluirQuadrosEmBranco: boolean) {
     if (!turma || !escola) return
     setAvisoCompartilhar(null)
-    const html = gerarHtmlFichaTreino(sessao!, turma, escola, { paraSubstituto: true })
+    const html = gerarHtmlFichaTreino(sessao!, turma, escola, { paraSubstituto: true, incluirQuadrosEmBranco })
     const resultado = await compartilharHtml(html, `Treino_${slugify(turma.nome)}_${sessao!.data}.html`, {
       titulo: `Treino ${turma.nome} — ${formatDate(sessao!.data)}`,
       texto: `Treino da turma ${turma.nome} (${escola.nome}) de ${formatDate(sessao!.data)}. Abra o arquivo pra ver a ficha completa com os desenhos.`,
@@ -387,9 +387,16 @@ export default function SessaoTreinoForm() {
             onChange={(e) => atualizarSessaoTreino(sessao.id, { recadoSubstituto: e.target.value })}
           />
         </Field>
-        <Button variant="gold" className="w-full justify-center" onClick={compartilharComSubstituto} disabled={!turma || !escola}>
+        <Button variant="gold" className="w-full justify-center" onClick={() => compartilharComSubstituto(false)} disabled={!turma || !escola}>
           <Share2 size={16} /> Compartilhar treino
         </Button>
+        <p className="text-[11px] text-[var(--rd-text-dim)] text-center mt-1">Só os exercícios que você preencheu</p>
+        {/* Opção com os quadros em branco (pedido 11/11/2026), pra quem
+            vai aplicar poder desenhar à mão nos quadros vazios. */}
+        <Button className="w-full justify-center mt-2" onClick={() => compartilharComSubstituto(true)} disabled={!turma || !escola}>
+          <Share2 size={16} /> Compartilhar com quadros em branco
+        </Button>
+        <p className="text-[11px] text-[var(--rd-text-dim)] text-center mt-1">Ficha completa, com espaço pra desenhar à mão</p>
         {avisoCompartilhar && <p className="text-xs mt-2 text-center" role="status">{avisoCompartilhar}</p>}
       </Card>
 
