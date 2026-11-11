@@ -62,9 +62,6 @@ const CSS_TREINO = `
   }
 `
 
-function quadraVaziaSvg(): string {
-  return `<div class="quadro-court"><div class="linha" style="left:33.33%"></div><div class="net" style="left:50%"></div><div class="linha" style="left:66.66%"></div></div>`
-}
 
 function corLinhaDesenho(tipo: LinhaDesenhoTipo): string {
   return tipo === 'saque_ataque' ? '#e74c3c' : tipo === 'toque_passe' ? '#3498db' : '#d4af37'
@@ -396,13 +393,11 @@ export function gerarHtmlFichaTreino(
       </div>
     </div>`
 
-  // Versão do auxiliar: só os quadros preenchidos (os em branco servem pra
-  // desenhar à mão na ficha impressa, mas pra quem aplica só poluem).
+  // Só os quadros preenchidos, nas duas fichas (pedido 11/11/2026: "os em
+  // branco eu não quero que mande").
   const quadroPreenchido = (q: SessaoTreino['quadros'][number] | undefined) =>
     !!q && !!(q.nome?.trim() || q.objetivo?.trim() || q.comoFunciona?.trim() || q.tempoMin || (q.desenho && q.desenho.elementos.length > 0))
-  const slotsVisiveis = paraSubstituto
-    ? QUADRO_SLOTS.filter((slot) => quadroPreenchido(sessao.quadros.find((x) => x.chave === slot.chave)))
-    : QUADRO_SLOTS
+  const slotsVisiveis = QUADRO_SLOTS.filter((slot) => quadroPreenchido(sessao.quadros.find((x) => x.chave === slot.chave)))
 
   const quadrosHtml = slotsVisiveis.map((slot) => {
     const q = sessao.quadros.find((x) => x.chave === slot.chave)
@@ -410,7 +405,7 @@ export function gerarHtmlFichaTreino(
       <div class="quadro-card">
         <div class="quadro-head"><span>${escapeHtml(slot.grupoLabel)}</span><span>${q?.tempoMin ? `${q.tempoMin} min` : ''}</span></div>
         <div class="quadro-nome">${q?.nome ? escapeHtml(q.nome) : ''}</div>
-        ${q?.desenho && q.desenho.elementos.length > 0 ? quadraSequenciaHtml(q.desenho) : paraSubstituto ? '' : quadraVaziaSvg()}
+        ${q?.desenho && q.desenho.elementos.length > 0 ? quadraSequenciaHtml(q.desenho) : ''}
         ${q?.objetivo ? `<div class="quadro-foot">Obj.: ${escapeHtml(q.objetivo)}</div>` : ''}
         ${q?.comoFunciona?.trim() ? `<div class="quadro-como"><b>Como funciona:</b> ${escapeHtml(q.comoFunciona.trim())}</div>` : ''}
       </div>`
@@ -419,7 +414,7 @@ export function gerarHtmlFichaTreino(
   const quadros = `
     <div class="card">
       <h2>${paraSubstituto ? 'Exercícios' : 'Quadros do treino'}</h2>
-      ${paraSubstituto && slotsVisiveis.length === 0
+      ${slotsVisiveis.length === 0
         ? '<div style="font-size:13px;color:#999">Nenhum exercício preenchido.</div>'
         : `<div class="quadros-grid${paraSubstituto ? ' lista' : ''}">${quadrosHtml}</div>`}
     </div>`

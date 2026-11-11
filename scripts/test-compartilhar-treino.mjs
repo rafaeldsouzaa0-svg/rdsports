@@ -49,10 +49,10 @@ assert(gerarHtmlFichaTreino(comExplicacao, turma, escola, { paraSubstituto: true
 
 // Auxiliar: só os quadros preenchidos, um por linha. Ficha normal: os 11.
 const contarQuadros = (html) => (html.match(/class="quadro-card"/g) ?? []).length
-assert(contarQuadros(normal) === QUADRO_SLOTS.length, `Ficha normal continua com os ${QUADRO_SLOTS.length} quadros (os vazios servem pra desenhar à mão)`)
+assert(contarQuadros(normal) === 1, 'Ficha normal também mostra só o quadro preenchido (os em branco não saem)')
 assert(contarQuadros(auxiliar) === 1, 'Ficha do auxiliar mostra só o quadro preenchido')
 assert(auxiliar.includes('quadros-grid lista') && !normal.includes('quadros-grid lista'), 'Só a ficha do auxiliar usa um exercício por linha')
-assert(normal.includes('class="quadro-court"') && !auxiliar.includes('class="quadro-court"'), 'Auxiliar: exercício sem desenho não mostra quadra em branco (a ficha normal mostra, pra desenhar à mão)')
+assert(!normal.includes('class="quadro-court"') && !auxiliar.includes('class="quadro-court"'), 'Exercício sem desenho não mostra quadra em branco (nas duas fichas)')
 const vazia = { ...sessao, quadros: QUADRO_SLOTS.map((q) => ({ chave: q.chave })) }
 assert(gerarHtmlFichaTreino(vazia, turma, escola, { paraSubstituto: true }).includes('Nenhum exercício preenchido'), 'Auxiliar sem nenhum exercício: mostra aviso em vez de lista vazia')
 
