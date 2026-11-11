@@ -36,6 +36,10 @@ const CSS_TREINO = `
   .quadro-court .net{position:absolute;left:50%;top:0;bottom:0;width:0;border-left:1px dashed #3a3a3a}
   .quadro-court .linha{position:absolute;top:0;bottom:0;width:0;border-left:1px solid #2a2a2a}
   .quadro-foot{font-size:9px;color:#999;margin-top:4px}
+  .quadro-texto{font-size:12px;line-height:1.5;margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .quadro-texto .rot{display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#d4af37;margin-bottom:2px}
+  .quadro-texto + .quadro-texto{margin-top:6px}
+  @media (max-width:640px){.quadros-grid{grid-template-columns:1fr}.quadro-nome{font-size:14px}}
   .reg-pedagogico{font-size:11px;line-height:1.7}
   .reg-pedagogico .q{font-weight:700;color:#d4af37;margin-top:10px}
   .reg-pedagogico .q:first-child{margin-top:0}
@@ -388,14 +392,26 @@ export function gerarHtmlFichaTreino(
       </div>
     </div>`
 
-  const quadrosHtml = QUADRO_SLOTS.map((slot) => {
+  // Texto do exercício junto do desenho (pedido 11/11/2026: ao compartilhar,
+  // o auxiliar só via os desenhos — o "Como funciona" nunca ia pra ficha).
+  // Na versão pro auxiliar, quadros totalmente vazios ficam de fora, pra ele
+  // ver só o que tem que aplicar.
+  const quadroTemConteudo = (q: (typeof sessao.quadros)[number] | undefined) =>
+    !!q && !!(q.nome?.trim() || q.objetivo?.trim() || q.comoFunciona?.trim() || (q.desenho && q.desenho.elementos.length > 0))
+  const slotsNaFicha = paraSubstituto
+    ? QUADRO_SLOTS.filter((slot) => quadroTemConteudo(sessao.quadros.find((x) => x.chave === slot.chave)))
+    : QUADRO_SLOTS
+  const quadrosHtml = slotsNaFicha.map((slot) => {
     const q = sessao.quadros.find((x) => x.chave === slot.chave)
+    const objetivo = q?.objetivo?.trim()
+    const comoFunciona = q?.comoFunciona?.trim()
     return `
       <div class="quadro-card">
         <div class="quadro-head"><span>${escapeHtml(slot.grupoLabel)}</span><span>${q?.tempoMin ? `${q.tempoMin} min` : ''}</span></div>
         <div class="quadro-nome">${q?.nome ? escapeHtml(q.nome) : ''}</div>
         ${q?.desenho && q.desenho.elementos.length > 0 ? quadraSequenciaHtml(q.desenho) : quadraVaziaSvg()}
-        ${q?.objetivo ? `<div class="quadro-foot">Obj.: ${escapeHtml(q.objetivo)}</div>` : ''}
+        ${objetivo ? `<div class="quadro-texto"><span class="rot">Objetivo</span>${escapeHtml(objetivo)}</div>` : ''}
+        ${comoFunciona ? `<div class="quadro-texto"><span class="rot">Como funciona</span>${escapeHtml(comoFunciona)}</div>` : ''}
       </div>`
   }).join('')
 
