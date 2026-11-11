@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Cloud } from 'lucide-react'
 import { useAuthStore } from '../../authStore'
-import { PageTitle, Card, Button, Field } from '../../components/ui'
+import { PageTitle, Card, Button, Field, BotaoVoltar } from '../../components/ui'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -24,6 +24,7 @@ export default function Login() {
 
   return (
     <div className="max-w-md mx-auto">
+      <BotaoVoltar to="/configuracoes" label="Configurações" />
       <PageTitle icon={<Cloud size={22} />} title="Entrar na conta na nuvem" subtitle="Sincroniza seus dados entre todos os seus aparelhos" />
       <Card>
         <form onSubmit={onSubmit}>
@@ -41,7 +42,6 @@ export default function Login() {
           <Link to="/auth/cadastro" className="underline">Criar conta</Link>
         </div>
       </Card>
-      <Link to="/configuracoes" className="inline-block mt-4 text-sm text-[var(--rd-text-dim)] underline">← Voltar</Link>
       <p className="mt-6 text-xs text-center text-[var(--rd-text-dim)]">
         É atleta e recebeu um código de acesso? <Link to="/atleta/entrar" className="underline">Entre no Portal da Atleta</Link>
       </p>

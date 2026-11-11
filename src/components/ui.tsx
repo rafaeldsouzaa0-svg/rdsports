@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronLeft } from 'lucide-react'
 import { useSyncStatus, type SincronizacaoStatus } from '../syncStatus'
 
 const SYNC_LABEL: Record<SincronizacaoStatus, string> = {
@@ -34,6 +36,23 @@ export function IndicadorSync({ className = '' }: { className?: string }) {
       />
       {SYNC_LABEL[status]}
     </div>
+  )
+}
+
+/** Botão de voltar no TOPO das telas internas (pedido 11/11/2026: antes ficava
+ *  um link pequeno no fim da página, difícil de achar no celular). Sempre
+ *  leva pra tela "de cima" (ex.: atleta → turma → escola → Escolas), com o
+ *  nome dela escrito, e tem altura de toque confortável (44px). */
+export function BotaoVoltar({ to, label }: { to: string; label: string }) {
+  return (
+    <Link
+      to={to}
+      className="inline-flex items-center gap-1 mb-2 -ml-2 pl-1 pr-3 rounded-lg text-sm font-semibold text-[var(--rd-text-dim)] hover:bg-black/5 dark:hover:bg-white/10"
+      style={{ minHeight: 44 }}
+    >
+      <ChevronLeft size={20} strokeWidth={2.25} />
+      {label}
+    </Link>
   )
 }
 

@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Cloud } from 'lucide-react'
 import { useAuthStore } from '../../authStore'
-import { PageTitle, Card, Button, Field } from '../../components/ui'
+import { PageTitle, Card, Button, Field, BotaoVoltar } from '../../components/ui'
 
 export default function RecuperarSenha() {
   const { recuperarSenha } = useAuthStore()
@@ -20,6 +19,7 @@ export default function RecuperarSenha() {
 
   return (
     <div className="max-w-md mx-auto">
+      <BotaoVoltar to="/auth/login" label="Login" />
       <PageTitle icon={<Cloud size={22} />} title="Recuperar senha" />
       <Card>
         {enviado ? (
@@ -33,7 +33,6 @@ export default function RecuperarSenha() {
             <Button variant="gold" type="submit">Enviar link</Button>
           </form>
         )}
-        <Link to="/auth/login" className="inline-block mt-4 text-sm text-[var(--rd-text-dim)] underline">← Voltar pro login</Link>
       </Card>
     </div>
   )

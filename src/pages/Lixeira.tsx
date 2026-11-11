@@ -1,5 +1,5 @@
 import { Trash2, RotateCcw } from 'lucide-react'
-import { PageTitle, Card, Button, EmptyState } from '../components/ui'
+import { PageTitle, Card, Button, EmptyState, BotaoVoltar } from '../components/ui'
 import { useStore } from '../store'
 import { formatDate } from '../utils'
 
@@ -45,6 +45,7 @@ export default function Lixeira() {
 
   return (
     <div>
+      <BotaoVoltar to="/configuracoes" label="Configurações" />
       <PageTitle icon={<Trash2 size={22} />} title="Lixeira" subtitle="Itens apagados — pode restaurar quando quiser." />
 
       {vazia && <EmptyState icon={<Trash2 size={28} />} text="A lixeira está vazia." />}

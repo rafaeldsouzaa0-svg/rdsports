@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useStore } from '../store'
-import { Card, EmptyState } from '../components/ui'
+import { Card, EmptyState, BotaoVoltar } from '../components/ui'
 import { LogoExibicao } from '../components/LogoUpload'
 import { encontrarLogoAdversario } from '../utils'
 import { Trophy, Users, Volleyball, Download, Printer, ShieldAlert, Target, MapPin, ArrowLeftRight, ListOrdered, BarChart3, Repeat, Flame, Crosshair, Swords, Sparkles, Copy, Check } from 'lucide-react'
@@ -611,6 +611,7 @@ export default function Relatorio() {
 
   return (
     <div>
+      <BotaoVoltar to="/historico" label="Histórico" />
       <div className="rd-header-gold p-6 flex items-center gap-4 mb-5">
         {(() => {
           const logo = encontrarLogoAdversario(adversarios, partida.adversarioNome)
@@ -700,7 +701,6 @@ export default function Relatorio() {
         rotuloRecorte={rotuloRecorte}
       />
 
-      <Link to="/historico" className="inline-block mt-4 text-sm text-[var(--rd-text-dim)] underline">← Voltar pro Histórico</Link>
     </div>
   )
 }

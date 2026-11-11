@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { User, Download, Printer, KeyRound, RefreshCw, Copy, Check, MapPin, TrendingUp } from 'lucide-react'
 import { useStore } from '../store'
-import { PageTitle, Card, Button, Field } from '../components/ui'
+import { PageTitle, Card, Button, Field, BotaoVoltar } from '../components/ui'
 import { LogoUpload } from '../components/LogoUpload'
 import { POSICOES, normalizarPosicao, type Posicao } from '../types'
 import { calcularRating, agregarScoutAtleta, partidasComParticipacao, setsFinalizados } from '../rating'
@@ -156,6 +156,7 @@ export default function AtletaPerfil() {
 
   return (
     <div>
+      <BotaoVoltar to={`/turmas/${atleta.turmaId}`} label={turma?.nome ?? 'Turma'} />
       <PageTitle
         icon={<User size={24} />}
         title={atleta.nome}
@@ -314,7 +315,6 @@ export default function AtletaPerfil() {
         )}
       </Card>
 
-      <Link to={`/turmas/${atleta.turmaId}`} className="inline-block mt-4 text-sm text-[var(--rd-text-dim)] underline">← Voltar</Link>
     </div>
   )
 }

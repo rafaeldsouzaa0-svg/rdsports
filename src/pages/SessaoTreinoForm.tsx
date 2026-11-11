@@ -5,10 +5,10 @@
 // — o desenho animado de quadra fica pra uma 2ª entrega). Exporta a mesma
 // ficha em HTML/PDF usada na lista (`treinoHtml.ts`).
 import { useRef, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ClipboardList, Download, Printer, ArrowLeft, Save, GripVertical, Presentation } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ClipboardList, Download, Printer, Save, GripVertical, Presentation } from 'lucide-react'
 import { useStore } from '../store'
-import { PageTitle, Card, Button, Field } from '../components/ui'
+import { PageTitle, Card, Button, Field, BotaoVoltar } from '../components/ui'
 import {
   GRUPOS_TEMAS_TREINO, TEMAS_TREINO, PROBLEMAS_JOGO_SUGERIDOS, CONDICIONANTES_TREINO, QUADRO_SLOTS,
   GRUPOS_QUADRO_ORDEM,
@@ -148,13 +148,13 @@ export default function SessaoTreinoForm() {
 
   return (
     <div>
+      <BotaoVoltar to="/treinos" label="Treinos" />
       <PageTitle
         icon={<ClipboardList size={24} />}
         title="Sessão de treino"
         subtitle="Monte o treino na ficha: ela sai pronta pra imprimir ou salvar em PDF."
         action={
           <div className="flex gap-2 flex-wrap">
-            <Link to="/treinos" className="rd-btn text-xs"><ArrowLeft size={14} /> Sessões</Link>
             <button className="rd-btn text-xs" onClick={() => setApresentando(true)}><Presentation size={14} /> Modo apresentação</button>
             <button className="rd-btn rd-btn-gold text-xs" onClick={salvarEVerNoCalendario}><Save size={14} /> Salvar</button>
           </div>

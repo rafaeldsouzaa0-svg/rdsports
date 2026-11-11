@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { Users, Plus, Trash2, Dumbbell, CalendarPlus, CalendarDays, Pencil } from 'lucide-react'
 import { useStore } from '../store'
-import { PageTitle, Card, Button, EmptyState, Field } from '../components/ui'
+import { PageTitle, Card, Button, EmptyState, Field, BotaoVoltar } from '../components/ui'
 import ConvocacaoForm from '../components/ConvocacaoForm'
 import { FORMATOS_PARTIDA } from '../types'
 import type { FormatoPartida } from '../types'
@@ -12,7 +12,7 @@ import { formatDate } from '../utils'
 export default function TurmaDetalhe() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { turmas, atletas, jogosAgendados, addAtleta, deleteAtleta, deleteJogoAgendado, criarPartida, updateTurma } = useStore()
+  const { escolas, turmas, atletas, jogosAgendados, addAtleta, deleteAtleta, deleteJogoAgendado, criarPartida, updateTurma } = useStore()
   const [nome, setNome] = useState('')
   const [formato, setFormato] = useState<FormatoPartida>('MELHOR_DE_5')
   // null = formulário fechado; 'novo' = agendando; id = editando a convocação daquele jogo.
@@ -38,6 +38,7 @@ export default function TurmaDetalhe() {
 
   return (
     <div>
+      <BotaoVoltar to={`/escolas/${turma.escolaId}`} label={escolas.find((e) => e.id === turma.escolaId)?.nome ?? 'Escola'} />
       <PageTitle icon={<Users size={24} />} title={turma.nome} subtitle="Jogos, convocação e atletas" />
 
       <Card className="mb-5">
@@ -134,8 +135,6 @@ export default function TurmaDetalhe() {
           })}
         </div>
       )}
-
-      <Link to="/escolas" className="inline-block mt-4 text-sm text-[var(--rd-text-dim)] underline">← Voltar</Link>
     </div>
   )
 }

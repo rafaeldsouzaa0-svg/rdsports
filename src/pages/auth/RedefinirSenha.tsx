@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Cloud } from 'lucide-react'
 import { useAuthStore } from '../../authStore'
-import { PageTitle, Card, Button, Field } from '../../components/ui'
+import { PageTitle, Card, Button, Field, BotaoVoltar } from '../../components/ui'
 
 export default function RedefinirSenha() {
   const navigate = useNavigate()
@@ -22,6 +22,7 @@ export default function RedefinirSenha() {
 
   return (
     <div className="max-w-md mx-auto">
+      <BotaoVoltar to="/configuracoes" label="Configurações" />
       <PageTitle icon={<Cloud size={22} />} title="Definir nova senha" />
       <Card>
         {ok ? (

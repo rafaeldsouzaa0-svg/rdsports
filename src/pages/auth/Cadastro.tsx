@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Cloud } from 'lucide-react'
 import { useAuthStore } from '../../authStore'
-import { PageTitle, Card, Button, Field } from '../../components/ui'
+import { PageTitle, Card, Button, Field, BotaoVoltar } from '../../components/ui'
 
 export default function Cadastro() {
   const { cadastrar } = useAuthStore()
@@ -24,6 +24,7 @@ export default function Cadastro() {
 
   return (
     <div className="max-w-md mx-auto">
+      <BotaoVoltar to="/auth/login" label="Login" />
       <PageTitle icon={<Cloud size={22} />} title="Criar conta na nuvem" />
       <Card>
         {sucesso ? (

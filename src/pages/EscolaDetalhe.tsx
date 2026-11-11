@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { School as SchoolIcon, Plus, Trash2, Users } from 'lucide-react'
 import { useStore } from '../store'
-import { PageTitle, Card, Button, EmptyState } from '../components/ui'
+import { PageTitle, Card, Button, EmptyState, BotaoVoltar } from '../components/ui'
 import { LogoUpload } from '../components/LogoUpload'
 
 export default function EscolaDetalhe() {
@@ -16,6 +16,7 @@ export default function EscolaDetalhe() {
 
   return (
     <div>
+      <BotaoVoltar to="/escolas" label="Escolas" />
       <PageTitle icon={<SchoolIcon size={24} />} title={escola.nome} subtitle="Turmas desta escola" />
 
       <Card className="mb-4">
@@ -49,8 +50,6 @@ export default function EscolaDetalhe() {
           ))}
         </div>
       )}
-
-      <Link to="/escolas" className="inline-block mt-4 text-sm text-[var(--rd-text-dim)] underline">← Voltar pra Escolas</Link>
     </div>
   )
 }
