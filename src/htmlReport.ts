@@ -455,6 +455,32 @@ export function baixarHtml(html: string, nomeArquivo: string): void {
   URL.revokeObjectURL(url)
 }
 
+/** Compartilha um HTML como arquivo pela folha de compartilhamento do celular
+ *  (WhatsApp, e-mail, Telegram...) — pedido 11/11/2026, pra mandar o treino pro
+ *  auxiliar. Onde o navegador não sabe compartilhar arquivos (a maioria dos
+ *  computadores), baixa o arquivo pra ser enviado como anexo.
+ *  Retorna o que aconteceu, pra tela mostrar a mensagem certa. */
+export async function compartilharHtml(
+  html: string,
+  nomeArquivo: string,
+  info: { titulo: string; texto: string },
+): Promise<'compartilhado' | 'cancelado' | 'baixado'> {
+  const arquivo = new File([html], nomeArquivo, { type: 'text/html' })
+  const dados: ShareData = { files: [arquivo], title: info.titulo, text: info.texto }
+  if (typeof navigator !== 'undefined' && navigator.canShare?.(dados)) {
+    try {
+      await navigator.share(dados)
+      return 'compartilhado'
+    } catch (e) {
+      // Fechou a folha de compartilhamento sem escolher ninguém.
+      if (e instanceof DOMException && e.name === 'AbortError') return 'cancelado'
+      // Qualquer outro problema: cai pro download abaixo.
+    }
+  }
+  baixarHtml(html, nomeArquivo)
+  return 'baixado'
+}
+
 /** "Baixar PDF": abre o relatório numa aba nova e aciona o diálogo de impressão
  *  nativo do navegador, que em qualquer celular/computador tem a opção "Salvar
  *  como PDF" — sem precisar de nenhuma biblioteca extra de geração de PDF no

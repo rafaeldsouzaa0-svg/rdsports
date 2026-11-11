@@ -6,7 +6,7 @@
 // ficha em HTML/PDF usada na lista (`treinoHtml.ts`).
 import { useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ClipboardList, Download, Printer, Save, GripVertical, Presentation } from 'lucide-react'
+import { ClipboardList, Download, Printer, Save, GripVertical, Presentation, Share2 } from 'lucide-react'
 import { useStore } from '../store'
 import { PageTitle, Card, Button, Field, BotaoVoltar } from '../components/ui'
 import {
@@ -14,7 +14,8 @@ import {
   GRUPOS_QUADRO_ORDEM,
 } from '../types'
 import { gerarHtmlFichaTreino } from '../treinoHtml'
-import { baixarHtml, abrirParaImprimir, slugify } from '../htmlReport'
+import { baixarHtml, abrirParaImprimir, slugify, compartilharHtml } from '../htmlReport'
+import { formatDate } from '../utils'
 import { QuadroDesenhoEditor, QuadroDesenhoPreview, QuadroDesenhoAnimado } from '../components/QuadroDesenhoEditor'
 import { BibliotecaPicker } from '../components/BibliotecaPicker'
 import { ModoApresentacao } from '../components/ModoApresentacao'
@@ -45,6 +46,7 @@ export default function SessaoTreinoForm() {
   const [usandoBibliotecaChave, setUsandoBibliotecaChave] = useState<string | null>(null)
   const [salvoNaBibliotecaChave, setSalvoNaBibliotecaChave] = useState<string | null>(null)
   const [apresentando, setApresentando] = useState(false)
+  const [avisoCompartilhar, setAvisoCompartilhar] = useState<string | null>(null)
   // Arrastar um quadro pra outro lugar da ficha (pedido 31/10/2026: "poder
   // arrastar o exercício para colocar em outra parte do treino") — feito com
   // Pointer Events (não HTML5 drag-and-drop nativo, que não funciona em
@@ -134,6 +136,22 @@ export default function SessaoTreinoForm() {
     const html = gerarHtmlFichaTreino(sessao!, turma, escola)
     if (modo === 'html') baixarHtml(html, `RDSports_treino_${slugify(turma.nome)}_${sessao!.data}.html`)
     else abrirParaImprimir(html)
+  }
+
+  /** Manda a ficha pro auxiliar que vai dar o treino (pedido 11/11/2026). */
+  async function compartilharComSubstituto() {
+    if (!turma || !escola) return
+    setAvisoCompartilhar(null)
+    const html = gerarHtmlFichaTreino(sessao!, turma, escola, { paraSubstituto: true })
+    const resultado = await compartilharHtml(html, `Treino_${slugify(turma.nome)}_${sessao!.data}.html`, {
+      titulo: `Treino ${turma.nome} — ${formatDate(sessao!.data)}`,
+      texto: `Treino da turma ${turma.nome} (${escola.nome}) de ${formatDate(sessao!.data)}. Abra o arquivo pra ver a ficha completa com os desenhos.`,
+    })
+    if (resultado === 'baixado') {
+      setAvisoCompartilhar('Arquivo baixado. Envie ele como anexo pelo WhatsApp ou e-mail pra quem vai dar o treino.')
+    } else if (resultado === 'compartilhado') {
+      setAvisoCompartilhar('Treino enviado ✓')
+    }
   }
 
   /** Cada campo já salva sozinho a cada letra digitada (autosave, igual o
@@ -350,6 +368,29 @@ export default function SessaoTreinoForm() {
         <Field label="Ajustes feitos durante o treino — o que eu mudei e por quê">
           <textarea className="rd-input" rows={2} value={sessao.registroPedagogico.ajustesFeitos ?? ''} onChange={(e) => atualizarSessaoTreino(sessao.id, { registroPedagogico: { ...sessao.registroPedagogico, ajustesFeitos: e.target.value } })} />
         </Field>
+      </Card>
+
+      {/* Compartilhar com o auxiliar (pedido 11/11/2026): quando o Rafael
+          precisa faltar numa escola pra ir em outra, manda a ficha pronta pra
+          quem vai dar o treino no lugar dele. */}
+      <Card className="mb-5" style={{ borderColor: 'var(--rd-gold)' }}>
+        <div className="font-bold text-sm mb-1 flex items-center gap-2"><Share2 size={16} /> Compartilhar com quem vai dar o treino</div>
+        <p className="text-xs text-[var(--rd-text-dim)] mb-3">
+          Manda a ficha completa, com os desenhos dos exercícios, pelo WhatsApp ou outro app. A pessoa só precisa abrir o arquivo, sem instalar nada.
+        </p>
+        <Field label="Recado (opcional)">
+          <textarea
+            className="rd-input"
+            rows={2}
+            placeholder="Ex.: Chegar 10 min antes, a bola fica no armário 3. Atenção na recepção da Ana."
+            value={sessao.recadoSubstituto ?? ''}
+            onChange={(e) => atualizarSessaoTreino(sessao.id, { recadoSubstituto: e.target.value })}
+          />
+        </Field>
+        <Button variant="gold" className="w-full justify-center" onClick={compartilharComSubstituto} disabled={!turma || !escola}>
+          <Share2 size={16} /> Compartilhar treino
+        </Button>
+        {avisoCompartilhar && <p className="text-xs mt-2 text-center" role="status">{avisoCompartilhar}</p>}
       </Card>
 
       <div className="flex gap-2 flex-wrap">

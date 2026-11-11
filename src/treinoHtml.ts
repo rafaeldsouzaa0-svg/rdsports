@@ -292,7 +292,7 @@ function quadraDesenhoSvg(desenho: QuadroDesenho): string {
   </div>`
 }
 
-function paginaHtmlTreino(conteudoBody: string, titulo: string): string {
+function paginaHtmlTreino(conteudoBody: string, titulo: string, mostrarVoltar = true): string {
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -305,9 +305,9 @@ function paginaHtmlTreino(conteudoBody: string, titulo: string): string {
 </head>
 <body>
 <div class="wrap">
-<div class="rd-voltar-wrap">
+${mostrarVoltar ? `<div class="rd-voltar-wrap">
 <button class="rd-voltar-btn" onclick="rdVoltar()">‹ Voltar ao app</button>
-</div>
+</div>` : ''}
 ${conteudoBody}
 <footer>Gerado por RDSports em ${new Date().toLocaleString('pt-BR')}</footer>
 </div>
@@ -333,7 +333,18 @@ const LABEL_CAMADA: Record<string, string> = {
   leitura_ajuste: 'Leitura/ajuste', execucao: 'Execução', decisao: 'Decisão', cooperacao_conduta: 'Cooperação/conduta',
 }
 
-export function gerarHtmlFichaTreino(sessao: SessaoTreino, turma: Pick<Turma, 'nome'>, escola: Pick<Escola, 'nome'>): string {
+/** `paraSubstituto` (pedido 11/11/2026): versão da ficha que o Rafael manda
+ *  pro auxiliar que vai dar o treino no lugar dele. Diferenças: aviso no topo
+ *  com o recado, sem o botão "Voltar ao app" (o auxiliar abre o arquivo direto
+ *  pelo WhatsApp, fora do app) e sem o Registro pedagógico (é a reflexão do
+ *  próprio Rafael depois do treino, não faz parte do que o auxiliar aplica). */
+export function gerarHtmlFichaTreino(
+  sessao: SessaoTreino,
+  turma: Pick<Turma, 'nome'>,
+  escola: Pick<Escola, 'nome'>,
+  opcoes: { paraSubstituto?: boolean } = {},
+): string {
+  const paraSubstituto = !!opcoes.paraSubstituto
   const temasSelecionados = sessao.temas.map((id) => TEMAS_TREINO.find((t) => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t)
   const temaPrincipal = temasSelecionados[0]
   const condicionantesSelecionadas = sessao.condicionantes.map((id) => CONDICIONANTES_TREINO.find((c) => c.id === id)).filter((c): c is NonNullable<typeof c> => !!c)
@@ -415,6 +426,19 @@ export function gerarHtmlFichaTreino(sessao: SessaoTreino, turma: Pick<Turma, 'n
         <div class="a">${escapeHtml(rp.ajustesFeitos || '—')}</div>
       </div>
     </div>`
+
+  const recado = (sessao.recadoSubstituto ?? '').trim()
+  const avisoSubstituto = `
+    <div class="card" style="border:2px solid #f5b800">
+      <h2 style="margin-bottom:6px">Treino para você aplicar</h2>
+      <div style="font-size:13px">${escapeHtml(turma.nome)} · ${escapeHtml(escola.nome)} · ${formatDate(sessao.data)}</div>
+      ${recado ? `<div style="font-size:13px;margin-top:10px;white-space:pre-wrap"><b>Recado:</b> ${escapeHtml(recado)}</div>` : ''}
+    </div>`
+
+  if (paraSubstituto) {
+    const body = header + avisoSubstituto + info + problemaECondicionantes + quadros
+    return paginaHtmlTreino(body, `Treino — ${turma.nome} — ${formatDate(sessao.data)}`, false)
+  }
 
   const body = header + info + problemaECondicionantes + quadros + registroPedagogico
   return paginaHtmlTreino(body, `Ficha de Treino — ${turma.nome} — ${formatDate(sessao.data)}`)

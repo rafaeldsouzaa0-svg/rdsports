@@ -572,6 +572,10 @@ export interface SessaoTreino {
   condicionantes: string[]
   quadros: QuadroTreino[]
   registroPedagogico: RegistroPedagogico
+  /** Recado pro professor/auxiliar que vai dar o treino no lugar do Rafael
+   *  (pedido 11/11/2026: compartilhar o treino com o auxiliar quando ele
+   *  precisa faltar numa escola). Aparece no topo da ficha compartilhada. */
+  recadoSubstituto?: string
   createdAt: string
   updatedAt: string
   deletedAt?: string
