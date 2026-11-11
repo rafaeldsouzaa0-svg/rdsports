@@ -81,6 +81,11 @@ export interface Turma {
   id: string
   escolaId: string
   nome: string
+  /** Nível da turma (pedido 11/11/2026), ex.: 7 pro 7º ano. Serve pra saber
+   *  quais turmas estão "embaixo" na hora de puxar reforço pra convocação.
+   *  Vazio = usa o primeiro número do nome (ver `nivelDaTurma`). Guardado na
+   *  coluna `ano_serie` da tabela `turmas`. */
+  nivel?: number
   createdAt: string
   updatedAt?: string
   deletedAt?: string
@@ -117,6 +122,9 @@ export interface Atleta {
   status?: 'ATIVA' | 'AFASTADA' | 'TRANSFERIDA' | 'INATIVA'
   /** Cadastro completo da atleta (pedido 23/10/2026). */
   idade?: number
+  /** Data de nascimento 'AAAA-MM-DD' (pedido 11/11/2026). Quando preenchida,
+   *  a idade é calculada a partir dela (ver `calcularIdade`). */
+  nascimento?: string
   alturaCm?: number
   /** Código de acesso pro Portal da Atleta (login simples, sem e-mail/conta de
    *  verdade — decisão explícita do Henrique) — undefined/vazio = portal
@@ -271,6 +279,10 @@ export interface Partida {
   pontosSetDecisivo?: number
   observacoes?: string
   videoUrl?: string
+  /** Atletas convocadas pra este jogo (pedido 11/11/2026), vindas do jogo
+   *  agendado no calendário. Pode ter reforço de turma de baixo da mesma
+   *  escola. Vazio/ausente = partida antiga ou treino: usa a turma inteira. */
+  convocadas?: string[]
   marcacoesVideo?: { tempo: string; nota: string }[]
   createdAt: string
   updatedAt?: string
@@ -296,6 +308,11 @@ export interface JogoAgendado {
   horario?: string
   local?: string
   checklist?: { item: string; feito: boolean }[]
+  /** Convocação (pedido 11/11/2026): ids das atletas chamadas pro jogo. */
+  convocadas?: string[]
+  /** Formato escolhido ao agendar; vai pra partida quando o scout começa. */
+  formato?: FormatoPartida
+  campeonatoNome?: string
   createdAt: string
   updatedAt?: string
   deletedAt?: string

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, Volleyball, Dumbbell, Trash2, Play, ClipboardList } from 'lucide-react'
+import { Calendar as CalendarIcon, ArrowRight, Users, ChevronLeft, ChevronRight, Volleyball, Dumbbell, Trash2, Play, ClipboardList } from 'lucide-react'
 import { useStore } from '../store'
 import { PageTitle, Card, Button, EmptyState, Field } from '../components/ui'
 import { isoDia, parseDataLocal, encontrarLogoAdversario } from '../utils'
@@ -49,10 +49,9 @@ function ocorrenciasTreinoNoIntervalo(horarios: { id: string; turmaId: string; d
 export default function Calendario() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { turmas, partidas, jogosAgendados, horariosTreino, sessoesTreino, adversarios, addJogoAgendado, addAdversario, deleteJogoAgendado, criarPartida } = useStore()
-  const [adversario, setAdversario] = useState('')
-  const [dataForm, setDataForm] = useState('')
-  const [turmaId, setTurmaId] = useState(turmas[0]?.id ?? '')
+  const { escolas, turmas, partidas, jogosAgendados, horariosTreino, sessoesTreino, adversarios, deleteJogoAgendado, criarPartida } = useStore()
+  const turmasVisiveis = turmas.filter((t) => !t.deletedAt)
+  const [turmaId, setTurmaId] = useState(turmasVisiveis[0]?.id ?? '')
 
   // Chegando de "Salvar e ver no Calendário" (editor de Treinos): abre direto
   // no mês/dia da sessão que acabou de ser salva, pra confirmar visualmente
@@ -160,11 +159,11 @@ export default function Calendario() {
 
   const eventosDoDiaSelecionado = diaSelecionado ? (eventosPorDia.get(diaSelecionado) ?? []) : []
 
-  function agendar() {
-    if (!adversario.trim() || !dataForm || !turmaId) return
-    const adv = addAdversario(adversario.trim())
-    addJogoAgendado({ turmaId, adversarioId: adv.id, adversarioNome: adv.nome, data: dataForm })
-    setAdversario(''); setDataForm('')
+  function nomeTurmaComEscola(id: string) {
+    const t = turmas.find((x) => x.id === id)
+    if (!t) return ''
+    const e = escolas.find((x) => x.id === t.escolaId)
+    return e ? `${t.nome} · ${e.nome}` : t.nome
   }
 
   /** Transforma um jogo agendado em partida de verdade e já abre o Scout ao
@@ -174,10 +173,13 @@ export default function Calendario() {
    *  lista (marcado como concluído/consumido) pra não aparecer duplicado como
    *  "agendado" e "jogado" no mesmo dia. */
   function iniciarScoutDeAgendado(jogo: JogoAgendado) {
-    const partida = criarPartida(jogo.turmaId, 'JOGO', 'MELHOR_DE_5', {
+    // Formato e convocação vêm do agendamento feito na turma (11/11/2026).
+    const partida = criarPartida(jogo.turmaId, 'JOGO', jogo.formato ?? 'MELHOR_DE_5', {
       adversarioId: jogo.adversarioId,
       adversarioNome: jogo.adversarioNome,
       campeonatoId: jogo.campeonatoId,
+      campeonato: jogo.campeonatoNome,
+      convocadas: jogo.convocadas,
       data: jogo.data,
       local: jogo.local,
     })
@@ -199,21 +201,23 @@ export default function Calendario() {
     <div>
       <PageTitle icon={<CalendarIcon size={22} />} title="Calendário" subtitle="Jogos (agendados e já jogados) e treinos recorrentes" />
 
+      {/* Agendar jogo agora é feito DENTRO da turma, junto com a convocação
+          (pedido 11/11/2026). Aqui só leva pra turma escolhida. */}
       <Card className="mb-5">
-        <div className="grid sm:grid-cols-3 gap-2">
-          <Field label="Turma">
-            <select className="rd-input" value={turmaId} onChange={(e) => setTurmaId(e.target.value)}>
-              {turmas.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-            </select>
-          </Field>
-          <Field label="Adversário">
-            <input className="rd-input" value={adversario} onChange={(e) => setAdversario(e.target.value)} placeholder="Nome do adversário" />
-          </Field>
-          <Field label="Data">
-            <input className="rd-input" type="date" value={dataForm} onChange={(e) => setDataForm(e.target.value)} />
-          </Field>
+        <div className="font-bold text-sm mb-1">Agendar jogo</div>
+        <p className="text-xs text-[var(--rd-text-dim)] mb-3">O jogo é agendado na turma, já com a convocação das atletas. No dia, o scout começa por aqui.</p>
+        <div className="flex gap-2 flex-wrap items-end">
+          <div className="flex-1 min-w-[200px]">
+            <Field label="Turma">
+              <select className="rd-input" value={turmaId} onChange={(e) => setTurmaId(e.target.value)}>
+                {turmasVisiveis.map((t) => <option key={t.id} value={t.id}>{nomeTurmaComEscola(t.id)}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div className="mb-3">
+            <Button variant="gold" disabled={!turmaId} onClick={() => navigate(`/turmas/${turmaId}`)}>Ir para a turma <ArrowRight size={16} /></Button>
+          </div>
         </div>
-        <Button variant="gold" onClick={agendar}><Plus size={16} /> Agendar jogo</Button>
       </Card>
 
       <Card className="mb-5">
@@ -285,11 +289,23 @@ export default function Calendario() {
                       : ev.tipo === 'SESSAO_TREINO' ? <ClipboardList size={16} className="text-[var(--rd-neutro)] shrink-0" />
                       : ev.adversarioNome ? <LogoExibicao logoUrl={encontrarLogoAdversario(adversarios, ev.adversarioNome)} nome={ev.adversarioNome} tamanho={22} />
                       : <Volleyball size={16} className="rd-accent-text shrink-0" />}
-                    {ev.titulo}
-                    {ev.local && <span className="text-[var(--rd-text-dim)]">• {ev.local}</span>}
+                    <span>
+                      {ev.titulo}
+                      {ev.local && <span className="text-[var(--rd-text-dim)]"> • {ev.local}</span>}
+                      {ev.jogoAgendado && (
+                        <span className="block text-xs text-[var(--rd-text-dim)]">
+                          {nomeTurmaComEscola(ev.jogoAgendado.turmaId)}
+                          {' · '}
+                          {ev.jogoAgendado.convocadas?.length ? `${ev.jogoAgendado.convocadas.length} convocada(s)` : 'sem convocação (entra a turma toda)'}
+                        </span>
+                      )}
+                    </span>
                   </span>
                   {ev.jogoAgendado && (
                     <span className="flex gap-2">
+                      <button className="rd-btn text-xs" onClick={() => navigate(`/turmas/${ev.jogoAgendado!.turmaId}`)} aria-label="Ver convocação na turma">
+                        <Users size={14} /> Convocação
+                      </button>
                       <button className="rd-btn rd-btn-gold text-xs" onClick={() => iniciarScoutDeAgendado(ev.jogoAgendado!)}>
                         <Play size={14} /> Iniciar Scout
                       </button>

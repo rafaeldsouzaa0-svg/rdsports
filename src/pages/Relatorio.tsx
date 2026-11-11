@@ -489,7 +489,11 @@ function SecaoScout({ titulo, sets, atletas, partida, rotuloRecorte }: { titulo:
   // Pedido 23/10/2026: mostrar TODAS as atletas da turma no relatório geral,
   // até quem não entrou na partida ou não teve nenhuma ação registrada —
   // completa a lista com linhas zeradas pra quem ficou de fora.
-  const atletasDaTurma = atletas.filter((a) => a.turmaId === partida.turmaId && !a.deletedAt)
+  // Jogo com convocação (11/11/2026): a lista é das convocadas, incluindo
+  // reforços de turmas de baixo; sem convocação, a turma inteira.
+  const atletasDaTurma = partida.convocadas?.length
+    ? atletas.filter((a) => partida.convocadas!.includes(a.id) && !a.deletedAt)
+    : atletas.filter((a) => a.turmaId === partida.turmaId && !a.deletedAt)
   const idsComDados = new Set(comDados.map((p) => p.atletaId))
   const semDados = atletasDaTurma
     .filter((a) => !idsComDados.has(a.id))

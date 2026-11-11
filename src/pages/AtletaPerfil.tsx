@@ -9,6 +9,7 @@ import { calcularRating, agregarScoutAtleta, partidasComParticipacao, setsFinali
 import { gerarHtmlPerfilAtleta, gerarHtmlRelatorioAtleta, baixarHtml, abrirParaImprimir, slugify } from '../htmlReport'
 import { analisePorAtletaEPosicao } from '../scoutEngine'
 import { formatDate } from '../utils'
+import { calcularIdade } from '../convocacao'
 
 const ROMANO_POS = ['I', 'II', 'III', 'IV', 'V', 'VI']
 
@@ -136,7 +137,8 @@ export default function AtletaPerfil() {
   const scoutAgregado = agregarScoutAtleta(atleta.id, partidas)
   const rating = calcularRating(scoutAgregado, posicaoNormalizada, posicaoSecundariaNormalizada)
   const partidasInfo = partidasComParticipacao(atleta.id, partidas)
-  const partidasDaTurma = partidas.filter((p) => p.turmaId === atleta.turmaId)
+  // Inclui jogos em que ela foi convocada como reforço de outra turma (11/11/2026).
+  const partidasDaTurma = partidas.filter((p) => p.turmaId === atleta.turmaId || p.convocadas?.includes(atleta.id))
 
   function compartilhar(modo: 'html' | 'pdf') {
     const html = gerarHtmlPerfilAtleta({ ...atleta!, posicaoPrincipal: posicaoNormalizada, posicaoSecundaria: posicaoSecundariaNormalizada }, scoutAgregado, rating, partidasInfo)
@@ -187,10 +189,27 @@ export default function AtletaPerfil() {
       <Card className="mb-5">
         <div className="font-bold text-sm mb-3">📋 Cadastro</div>
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="Idade">
+          {/* Data de nascimento junto com a idade (pedido 11/11/2026): com a
+              data preenchida, a idade é calculada sozinha e o campo de idade
+              fica só pra leitura; sem data, a idade continua digitada à mão. */}
+          <Field label="Data de nascimento">
+            <input
+              type="date" className="rd-input"
+              value={atleta.nascimento ?? ''}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => {
+                const nascimento = e.target.value || undefined
+                updateAtleta(atleta.id, nascimento
+                  ? { nascimento, idade: calcularIdade(nascimento) }
+                  : { nascimento: undefined })
+              }}
+            />
+          </Field>
+          <Field label={atleta.nascimento ? 'Idade (calculada pela data)' : 'Idade'}>
             <input
               type="number" min={0} className="rd-input"
-              value={atleta.idade ?? ''}
+              value={(atleta.nascimento ? calcularIdade(atleta.nascimento) : atleta.idade) ?? ''}
+              readOnly={!!atleta.nascimento}
               onChange={(e) => updateAtleta(atleta.id, { idade: e.target.value ? Number(e.target.value) : undefined })}
             />
           </Field>

@@ -78,6 +78,7 @@ interface RDState {
   restoreEscola: (id: string) => void
 
   addTurma: (escolaId: string, nome: string) => Turma
+  updateTurma: (id: string, patch: Partial<Pick<Turma, 'nome' | 'nivel'>>) => void
   deleteTurma: (id: string) => void
   restoreTurma: (id: string) => void
 
@@ -104,6 +105,7 @@ interface RDState {
   deleteHorarioTreino: (id: string) => void
 
   addJogoAgendado: (j: Omit<JogoAgendado, 'id' | 'createdAt'>) => JogoAgendado
+  updateJogoAgendado: (id: string, patch: Partial<Omit<JogoAgendado, 'id' | 'createdAt'>>) => void
   deleteJogoAgendado: (id: string) => void
   restoreJogoAgendado: (id: string) => void
 
@@ -184,6 +186,9 @@ export const useStore = create<RDState>()(
         const turma: Turma = { id: uid(), escolaId, nome, createdAt: nowISO() }
         setState((s) => ({ turmas: [...s.turmas, turma] }))
         return turma
+      },
+      updateTurma: (id, patch) => {
+        setState((s) => ({ turmas: s.turmas.map((t) => (t.id === id ? { ...t, ...patch } : t)) }))
       },
       deleteTurma: (id) => {
         const ts = carimbo()
@@ -296,6 +301,9 @@ export const useStore = create<RDState>()(
         const jogo: JogoAgendado = { ...j, id: uid(), createdAt: nowISO() }
         setState((s) => ({ jogosAgendados: [...s.jogosAgendados, jogo] }))
         return jogo
+      },
+      updateJogoAgendado: (id, patch) => {
+        setState((s) => ({ jogosAgendados: s.jogosAgendados.map((j) => (j.id === id ? { ...j, ...patch } : j)) }))
       },
       deleteJogoAgendado: (id) => {
         setState((s) => ({ jogosAgendados: s.jogosAgendados.map((j) => (j.id === id ? { ...j, deletedAt: carimbo() } : j)) }))

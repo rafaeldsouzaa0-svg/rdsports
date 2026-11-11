@@ -14,6 +14,7 @@ import {
 } from './scoutEngine'
 import type { RatingAtleta } from './rating'
 import { formatDate } from './utils'
+import { calcularIdade, formatarDataBR } from './convocacao'
 
 const ROMANO = ['I', 'II', 'III', 'IV', 'V', 'VI']
 
@@ -333,7 +334,11 @@ function rdVoltar(){
 export function gerarHtmlRelatorioPartida(partida: Partida, sets: SetPartida[], atletas: Pick<Atleta, 'id' | 'nome' | 'turmaId' | 'deletedAt'>[], rotuloRecorte: string): string {
   const titulo = `vs ${partida.adversarioNome ?? 'Adversário'}`
   const subtitulo = `${formatDate(partida.data)} • ${resumoFormato(partida)} • ${rotuloRecorte}`
-  const atletasDaTurma = atletas.filter((a) => a.turmaId === partida.turmaId && !a.deletedAt)
+  // Jogo com convocação (11/11/2026): a lista é das convocadas, incluindo
+  // reforços de turmas de baixo; sem convocação, a turma inteira.
+  const atletasDaTurma = partida.convocadas?.length
+    ? atletas.filter((a) => partida.convocadas!.includes(a.id) && !a.deletedAt)
+    : atletas.filter((a) => a.turmaId === partida.turmaId && !a.deletedAt)
   const body = `
     ${cabecalhoHtml(titulo, subtitulo)}
     ${placarHtml(partida)}
@@ -380,7 +385,7 @@ export function gerarHtmlRelatorioAtleta(partida: Partida, sets: SetPartida[], a
  *  mostra o código de acesso ao Portal da Atleta (só o treinador vê isso
  *  dentro do app). */
 export function gerarHtmlPerfilAtleta(
-  atleta: Pick<Atleta, 'nome' | 'idade' | 'alturaCm' | 'posicaoPrincipal' | 'posicaoSecundaria'>,
+  atleta: Pick<Atleta, 'nome' | 'idade' | 'nascimento' | 'alturaCm' | 'posicaoPrincipal' | 'posicaoSecundaria'>,
   scoutAgregado: Record<FundamentoScout, LinhaFundamento>,
   rating: RatingAtleta,
   partidasInfo: Array<{ partida: Partida; totalGeral: LinhaFundamento }>,
@@ -388,7 +393,8 @@ export function gerarHtmlPerfilAtleta(
   const titulo = atleta.nome
   const dadosCadastro = [
     atleta.posicaoPrincipal ? LABEL_POSICAO[atleta.posicaoPrincipal] : null,
-    atleta.idade ? `${atleta.idade} anos` : null,
+    (calcularIdade(atleta.nascimento) ?? atleta.idade) ? `${calcularIdade(atleta.nascimento) ?? atleta.idade} anos` : null,
+    atleta.nascimento ? `nasc. ${formatarDataBR(atleta.nascimento)}` : null,
     atleta.alturaCm ? `${atleta.alturaCm} cm` : null,
   ].filter(Boolean).join(' • ')
   // Escala 6.0-10.0 (pedido 30/10/2026) — mesmos limiares usados na tela.

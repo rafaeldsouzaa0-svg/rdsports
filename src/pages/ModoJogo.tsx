@@ -15,6 +15,7 @@ import { FORMATOS_PARTIDA, normalizarPosicao } from '../types'
 import type { FundamentoScout, ResultadoEvento, FormatoPartida, SetPartida, Partida, RallyEvento } from '../types'
 import type { LinhaErroAdversario, LinhaFundamento } from '../scoutEngine'
 import { Volleyball, Undo2, Square, Shield, Users, Check, ArrowLeftRight, AlertTriangle, History, Pencil, Menu, BarChart3 } from 'lucide-react'
+import { atletasDaPartida } from '../convocacao'
 
 // Cor e emoji por fundamento (pedido 30/10/2026: "mudar as cores... colocar
 // alguns emojis pra ficar mais divertido") — só identidade visual, não muda
@@ -155,7 +156,8 @@ export default function ModoJogo() {
   const partida = partidas.find((p) => p.id === id)
 
   // Papeleta (wizard): configuração do set 1 e, entre sets, só a escalação nova.
-  const [formatoW, setFormatoW] = useState<FormatoPartida>('MELHOR_DE_5')
+  // Começa no formato escolhido ao agendar o jogo (11/11/2026); dá pra trocar aqui.
+  const [formatoW, setFormatoW] = useState<FormatoPartida>(partida?.formato ?? 'MELHOR_DE_5')
   const [pontosNormalW, setPontosNormalW] = useState(25)
   const [pontosDecisivoW, setPontosDecisivoW] = useState(15)
   const [quemSacaW, setQuemSacaW] = useState<'CASA' | 'ADVERSARIO'>('CASA')
@@ -218,7 +220,12 @@ export default function ModoJogo() {
 
   if (!partida) return <p>Partida não encontrada.</p>
 
-  const meusAtletas = atletas.filter((a) => a.turmaId === partida.turmaId && !a.deletedAt)
+  // Com convocação (jogo vindo do Calendário, 11/11/2026): só as convocadas,
+  // turma principal primeiro e reforços de turmas de baixo depois. Sem
+  // convocação (treino ou partida antiga): a turma inteira, como antes.
+  const atletasNoJogo = atletasDaPartida(partida, atletas, turmas)
+  const meusAtletas = atletasNoJogo.map((x) => x.atleta)
+  const reforcoDe: Record<string, string | undefined> = Object.fromEntries(atletasNoJogo.map((x) => [x.atleta.id, x.reforcoDe]))
   const turma = turmas.find((t) => t.id === partida.turmaId)
   const nomeNosso = turma?.nome ?? 'Nosso time'
   const mapaNomes = Object.fromEntries(meusAtletas.map((a) => [a.id, a.nome]))
@@ -526,7 +533,10 @@ export default function ModoJogo() {
                 {disponiveisParaEscalar.length === 0 ? (
                   <p className="text-xs text-[var(--rd-text-dim)]">Todas as atletas já foram escaladas.</p>
                 ) : disponiveisParaEscalar.map((a) => (
-                  <button key={a.id} onClick={() => escolherParaEscalacao(a.id)} className="rd-btn text-xs">{a.nome}</button>
+                  <button key={a.id} onClick={() => escolherParaEscalacao(a.id)} className="rd-btn text-xs">
+                    {a.nome}
+                    {reforcoDe[a.id] && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: 'var(--rd-gold)', color: '#1a1300' }}>{reforcoDe[a.id]}</span>}
+                  </button>
                 ))}
               </div>
             </div>

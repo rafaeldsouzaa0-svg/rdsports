@@ -116,7 +116,10 @@ export async function pushAll(estado: {
   }
   if (estado.turmas.length) {
     await supabase.from('turmas').upsert(estado.turmas.map((t) => ({
-      id: t.id, owner_id: ownerId, escola_id: t.escolaId, nome: t.nome, created_at: t.createdAt, deleted_at: t.deletedAt ?? null,
+      id: t.id, owner_id: ownerId, escola_id: t.escolaId, nome: t.nome,
+      // Nível da turma (convocação, 11/11/2026) mora na coluna ano_serie.
+      ano_serie: t.nivel != null ? String(t.nivel) : null,
+      created_at: t.createdAt, deleted_at: t.deletedAt ?? null,
     })))
   }
   if (estado.adversarios.length) {
@@ -140,6 +143,7 @@ export async function pushAll(estado: {
       linhas.push({
         id: j.id, owner_id: ownerId, tipo: 'JOGO', titulo: j.adversarioNome, data: j.data,
         hora_inicio: j.horario ?? null, local: j.local ?? null,
+        convocadas: j.convocadas ?? null, formato: j.formato ?? null, campeonato: j.campeonatoNome ?? null,
         equipe_id: turma ? await getOrCreateEquipeDaTurma(ownerId, turma) : null,
         created_at: j.createdAt, deleted_at: j.deletedAt ?? null,
       })
@@ -159,7 +163,7 @@ export async function pushAll(estado: {
       id: a.id, owner_id: ownerId, nome: a.nome,
       numero: a.numero && !Number.isNaN(Number(a.numero)) ? Number(a.numero) : null,
       posicao: a.posicaoPrincipal ?? null, posicao_secundaria: a.posicaoSecundaria ?? null, foto_url: a.fotoUrl ?? null,
-      idade: a.idade ?? null, altura: a.alturaCm ?? null, codigo_acesso: a.codigoAcesso ?? null,
+      idade: a.idade ?? null, nascimento: a.nascimento ?? null, altura: a.alturaCm ?? null, codigo_acesso: a.codigoAcesso ?? null,
       status: (a.status ?? 'ATIVA').toLowerCase(), created_at: a.createdAt, deleted_at: a.deletedAt ?? null,
     })))
 
@@ -216,6 +220,7 @@ export async function pushAll(estado: {
         equipe_id: equipeId, categoria_id: categoriaId, adversario_id: adversarioId,
         campeonato_id: p.campeonatoId ?? null, tipo: p.tipo, data: p.data, local: p.local ?? null,
         campeonato: p.campeonato ?? null, observacoes: p.observacoes ?? null,
+        convocadas: p.convocadas ?? null,
         status: p.status === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
         sets_ganhos_casa: p.setsGanhosCasa, sets_ganhos_adversario: p.setsGanhosAdversario,
         pontos_set_decisivo: p.formato === 'TRES_OBRIGATORIOS_25' ? 25 : 15,
@@ -299,7 +304,9 @@ export async function pullAll(): Promise<DadosNuvem | null> {
     id: e.id, nome: e.nome, logoUrl: e.logo_url ?? undefined, createdAt: e.created_at, updatedAt: e.updated_at ?? undefined, deletedAt: e.deleted_at ?? undefined,
   }))
   const turmas: Turma[] = (turmasR.data ?? []).map((t) => ({
-    id: t.id, escolaId: t.escola_id, nome: t.nome, createdAt: t.created_at, updatedAt: t.updated_at ?? undefined, deletedAt: t.deleted_at ?? undefined,
+    id: t.id, escolaId: t.escola_id, nome: t.nome,
+    nivel: t.ano_serie && /^\d+$/.test(String(t.ano_serie).trim()) ? Number(String(t.ano_serie).trim()) : undefined,
+    createdAt: t.created_at, updatedAt: t.updated_at ?? undefined, deletedAt: t.deleted_at ?? undefined,
   }))
 
   const equipeParaTurma = new Map<string, string>()
@@ -324,7 +331,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
       id: a.id, turmaId: turmaAtualDoAtleta(a.id) ?? '', nome: a.nome,
       numero: a.numero != null ? String(a.numero) : undefined,
       posicaoPrincipal: normalizarPosicao(a.posicao), posicaoSecundaria: normalizarPosicao(a.posicao_secundaria), fotoUrl: a.foto_url ?? undefined,
-      idade: a.idade ?? undefined, alturaCm: a.altura ?? undefined, codigoAcesso: a.codigo_acesso ?? undefined,
+      idade: a.idade ?? undefined, nascimento: a.nascimento ?? undefined, alturaCm: a.altura ?? undefined, codigoAcesso: a.codigo_acesso ?? undefined,
       status: (a.status ? a.status.toUpperCase() : 'ATIVA') as Atleta['status'],
       createdAt: a.created_at, updatedAt: a.updated_at ?? undefined, deletedAt: a.deleted_at ?? undefined,
     }))
@@ -419,7 +426,9 @@ export async function pullAll(): Promise<DadosNuvem | null> {
         formato, data: p.data, local: p.local ?? undefined,
         status: p.status === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
         setsPartida: sets, setsGanhosCasa: p.sets_ganhos_casa, setsGanhosAdversario: p.sets_ganhos_adversario,
-        observacoes: p.observacoes ?? undefined, createdAt: p.criada_em, updatedAt: p.updated_at ?? undefined, deletedAt: p.deleted_at ?? undefined,
+        observacoes: p.observacoes ?? undefined,
+        convocadas: Array.isArray(p.convocadas) && p.convocadas.length ? (p.convocadas as string[]) : undefined,
+        createdAt: p.criada_em, updatedAt: p.updated_at ?? undefined, deletedAt: p.deleted_at ?? undefined,
       } satisfies Partida
     })
     .filter((p) => p.turmaId)
@@ -429,6 +438,8 @@ export async function pullAll(): Promise<DadosNuvem | null> {
     .map((e) => ({
       id: e.id, turmaId: (e.equipe_id ? equipeParaTurma.get(e.equipe_id) : undefined) ?? '',
       adversarioNome: e.titulo, data: e.data, horario: e.hora_inicio ?? undefined, local: e.local ?? undefined,
+      convocadas: Array.isArray(e.convocadas) && e.convocadas.length ? (e.convocadas as string[]) : undefined,
+      formato: (e.formato ?? undefined) as FormatoPartida | undefined, campeonatoNome: e.campeonato ?? undefined,
       createdAt: e.created_at, updatedAt: e.updated_at ?? undefined, deletedAt: e.deleted_at ?? undefined,
     }))
     .filter((j) => j.turmaId)
