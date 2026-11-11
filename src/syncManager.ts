@@ -72,6 +72,7 @@ async function executarPush() {
     await pushAll({
       escolas: s.escolas, turmas: s.turmas, atletas: s.atletas, adversarios: s.adversarios,
       campeonatos: s.campeonatos, partidas: s.partidas, jogosAgendados: s.jogosAgendados, avaliacoes: s.avaliacoes,
+      sessoesTreino: s.sessoesTreino, bibliotecaExercicios: s.bibliotecaExercicios,
     })
     useSyncStatus.getState().setStatus('sincronizado')
   } catch (err) {

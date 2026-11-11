@@ -11,10 +11,11 @@
 // Turma e uma Temporada ativa do ano atual — só pra satisfazer as colunas obrigatórias
 // do schema antigo, sem expor isso na UI.
 import { supabase } from './supabaseClient'
+import { enviarTreinos, lerTreinos } from './syncTreinos'
 import {
   normalizarPosicao,
   type Escola, type Turma, type Atleta, type Adversario, type Campeonato, type Partida, type SetPartida, type Rally, type RallyEvento,
-  type JogoAgendado, type AvaliacaoPeriodica, type FundamentoScout, type ResultadoEvento, type FormatoPartida,
+  type JogoAgendado, type AvaliacaoPeriodica, type SessaoTreino, type ExercicioBiblioteca, type FundamentoScout, type ResultadoEvento, type FormatoPartida,
 } from './types'
 
 export interface DadosNuvem {
@@ -26,6 +27,9 @@ export interface DadosNuvem {
   partidas: Partida[]
   jogosAgendados: JogoAgendado[]
   avaliacoes: AvaliacaoPeriodica[]
+  // Treinos e Biblioteca (sincronizam desde 11/11/2026 — ver syncTreinos.ts).
+  sessoesTreino: SessaoTreino[]
+  bibliotecaExercicios: ExercicioBiblioteca[]
 }
 
 async function getOwnerId(): Promise<string | null> {
@@ -105,9 +109,14 @@ async function getOrCreateAdversarioTreino(ownerId: string): Promise<string> {
 export async function pushAll(estado: {
   escolas: Escola[]; turmas: Turma[]; atletas: Atleta[]; adversarios: Adversario[]
   campeonatos: Campeonato[]; partidas: Partida[]; jogosAgendados: JogoAgendado[]; avaliacoes: AvaliacaoPeriodica[]
+  sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[]
 }): Promise<void> {
   const ownerId = await getOwnerId()
   if (!ownerId) return
+
+  // Treinos e Biblioteca vão primeiro: são pequenos e não dependem de nada
+  // do resto (11/11/2026).
+  await enviarTreinos(ownerId, estado)
 
   if (estado.escolas.length) {
     await supabase.from('escolas').upsert(estado.escolas.map((e) => ({
@@ -452,5 +461,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
     notas: av.notas ?? {}, observacoes: av.observacoes ?? undefined, updatedAt: av.updated_at ?? undefined,
   }))
 
-  return { escolas, turmas, atletas, adversarios, campeonatos, partidas, jogosAgendados, avaliacoes }
+  const { sessoesTreino, bibliotecaExercicios } = await lerTreinos(ownerId)
+
+  return { escolas, turmas, atletas, adversarios, campeonatos, partidas, jogosAgendados, avaliacoes, sessoesTreino, bibliotecaExercicios }
 }

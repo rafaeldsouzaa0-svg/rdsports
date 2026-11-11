@@ -381,12 +381,16 @@ export const useStore = create<RDState>()(
         }))
       },
 
+      // Apagar e restaurar marcam `updatedAt` (11/11/2026, junto com a
+      // sincronização dos treinos): sem isso, a cópia não apagada do outro
+      // aparelho parecia "mais nova" e o treino apagado voltava sozinho.
       excluirSessaoTreino: (id) => {
-        setState((s) => ({ sessoesTreino: s.sessoesTreino.map((sess) => (sess.id === id ? { ...sess, deletedAt: carimbo() } : sess)) }))
+        const agora = carimbo()
+        setState((s) => ({ sessoesTreino: s.sessoesTreino.map((sess) => (sess.id === id ? { ...sess, deletedAt: agora, updatedAt: agora } : sess)) }))
       },
 
       restaurarSessaoTreino: (id) => {
-        setState((s) => ({ sessoesTreino: s.sessoesTreino.map((sess) => (sess.id === id ? { ...sess, deletedAt: undefined } : sess)) }))
+        setState((s) => ({ sessoesTreino: s.sessoesTreino.map((sess) => (sess.id === id ? { ...sess, deletedAt: undefined, updatedAt: carimbo() } : sess)) }))
       },
 
       addExercicioBiblioteca: (e) => {
@@ -403,11 +407,12 @@ export const useStore = create<RDState>()(
       },
 
       excluirExercicioBiblioteca: (id) => {
-        setState((s) => ({ bibliotecaExercicios: s.bibliotecaExercicios.map((ex) => (ex.id === id ? { ...ex, deletedAt: carimbo() } : ex)) }))
+        const agora = carimbo()
+        setState((s) => ({ bibliotecaExercicios: s.bibliotecaExercicios.map((ex) => (ex.id === id ? { ...ex, deletedAt: agora, updatedAt: agora } : ex)) }))
       },
 
       restaurarExercicioBiblioteca: (id) => {
-        setState((s) => ({ bibliotecaExercicios: s.bibliotecaExercicios.map((ex) => (ex.id === id ? { ...ex, deletedAt: undefined } : ex)) }))
+        setState((s) => ({ bibliotecaExercicios: s.bibliotecaExercicios.map((ex) => (ex.id === id ? { ...ex, deletedAt: undefined, updatedAt: carimbo() } : ex)) }))
       },
 
       mesclarDaNuvem: (dados) => {
@@ -421,9 +426,11 @@ export const useStore = create<RDState>()(
           partidas: mesclarPorId(s.partidas, dados.partidas),
           jogosAgendados: mesclarPorId(s.jogosAgendados, dados.jogosAgendados),
           avaliacoes: mesclarPorId(s.avaliacoes, dados.avaliacoes),
+          sessoesTreino: mesclarPorId(s.sessoesTreino, dados.sessoesTreino),
+          bibliotecaExercicios: mesclarPorId(s.bibliotecaExercicios, dados.bibliotecaExercicios),
         }
         // `mesclarPorId` devolve a MESMA referência de array quando nada
-        // mudou naquela lista — se nenhuma das 8 mudou, nem chama setState,
+        // mudou naquela lista — se nenhuma das listas mudou, nem chama setState,
         // pra não disparar o `store.subscribe` (que agendaria um push à toa
         // a cada pull periódico, mesmo sem nenhuma mudança real).
         const mudouAlgo = (Object.keys(proximo) as (keyof typeof proximo)[]).some((k) => proximo[k] !== s[k])
