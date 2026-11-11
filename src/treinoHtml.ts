@@ -30,6 +30,14 @@ const CSS_TREINO = `
   .chip{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(212,175,55,.14);color:#d4af37;margin:0 4px 4px 0}
   .quadros-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   .quadro-card{border:1px solid #232323;border-radius:12px;padding:8px;background:#0b0b0b}
+  .quadro-como{font-size:9px;color:#d0d0d0;margin-top:4px;white-space:pre-wrap;line-height:1.45}
+  /* Versão do auxiliar (pedido 11/11/2026): um exercício por linha, letra e desenho maiores pra ler no celular. */
+  .quadros-grid.lista{grid-template-columns:1fr;gap:14px}
+  .lista .quadro-card{padding:12px}
+  .lista .quadro-head{font-size:11px}
+  .lista .quadro-nome{font-size:16px;margin-bottom:8px}
+  .lista .quadro-foot{font-size:13px;color:#bbb}
+  .lista .quadro-como{font-size:14px;color:#f0f0f0;margin-top:8px}
   .quadro-head{display:flex;justify-content:space-between;font-size:9px;font-weight:700;color:#999;text-transform:uppercase;margin-bottom:6px}
   .quadro-nome{font-size:11px;font-weight:700;margin-bottom:4px;min-height:14px}
   .quadro-court{width:100%;aspect-ratio:3/2;border:1.5px solid #3a3a3a;border-radius:4px;position:relative;background:#141414}
@@ -388,21 +396,32 @@ export function gerarHtmlFichaTreino(
       </div>
     </div>`
 
-  const quadrosHtml = QUADRO_SLOTS.map((slot) => {
+  // Versão do auxiliar: só os quadros preenchidos (os em branco servem pra
+  // desenhar à mão na ficha impressa, mas pra quem aplica só poluem).
+  const quadroPreenchido = (q: SessaoTreino['quadros'][number] | undefined) =>
+    !!q && !!(q.nome?.trim() || q.objetivo?.trim() || q.comoFunciona?.trim() || q.tempoMin || (q.desenho && q.desenho.elementos.length > 0))
+  const slotsVisiveis = paraSubstituto
+    ? QUADRO_SLOTS.filter((slot) => quadroPreenchido(sessao.quadros.find((x) => x.chave === slot.chave)))
+    : QUADRO_SLOTS
+
+  const quadrosHtml = slotsVisiveis.map((slot) => {
     const q = sessao.quadros.find((x) => x.chave === slot.chave)
     return `
       <div class="quadro-card">
         <div class="quadro-head"><span>${escapeHtml(slot.grupoLabel)}</span><span>${q?.tempoMin ? `${q.tempoMin} min` : ''}</span></div>
         <div class="quadro-nome">${q?.nome ? escapeHtml(q.nome) : ''}</div>
-        ${q?.desenho && q.desenho.elementos.length > 0 ? quadraSequenciaHtml(q.desenho) : quadraVaziaSvg()}
+        ${q?.desenho && q.desenho.elementos.length > 0 ? quadraSequenciaHtml(q.desenho) : paraSubstituto ? '' : quadraVaziaSvg()}
         ${q?.objetivo ? `<div class="quadro-foot">Obj.: ${escapeHtml(q.objetivo)}</div>` : ''}
+        ${q?.comoFunciona?.trim() ? `<div class="quadro-como"><b>Como funciona:</b> ${escapeHtml(q.comoFunciona.trim())}</div>` : ''}
       </div>`
   }).join('')
 
   const quadros = `
     <div class="card">
-      <h2>Quadros do treino</h2>
-      <div class="quadros-grid">${quadrosHtml}</div>
+      <h2>${paraSubstituto ? 'Exercícios' : 'Quadros do treino'}</h2>
+      ${paraSubstituto && slotsVisiveis.length === 0
+        ? '<div style="font-size:13px;color:#999">Nenhum exercício preenchido.</div>'
+        : `<div class="quadros-grid${paraSubstituto ? ' lista' : ''}">${quadrosHtml}</div>`}
     </div>`
 
   const rp = sessao.registroPedagogico

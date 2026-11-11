@@ -39,6 +39,23 @@ assert(!auxiliar.includes('Registro pedagógico') && !auxiliar.includes('Reflex�
 assert(auxiliar.includes('Rede baixa 2x2') && auxiliar.includes('Ler a defesa') && auxiliar.includes('15 min'), 'Ficha do auxiliar traz os exercícios')
 assert(auxiliar.includes('Sub-15 Feminino') && auxiliar.includes('Escola Centro'), 'Ficha do auxiliar traz turma e escola')
 
+// "Como funciona" aparece nas duas fichas (antes não saía em nenhuma).
+const comExplicacao = {
+  ...sessao,
+  quadros: sessao.quadros.map((q, i) => (i === 0 ? { ...q, comoFunciona: 'Duplas, 3 toques obrigatórios' } : q)),
+}
+assert(gerarHtmlFichaTreino(comExplicacao, turma, escola).includes('Duplas, 3 toques obrigatórios'), 'Ficha normal mostra o "Como funciona"')
+assert(gerarHtmlFichaTreino(comExplicacao, turma, escola, { paraSubstituto: true }).includes('Duplas, 3 toques obrigatórios'), 'Ficha do auxiliar mostra o "Como funciona"')
+
+// Auxiliar: só os quadros preenchidos, um por linha. Ficha normal: os 11.
+const contarQuadros = (html) => (html.match(/class="quadro-card"/g) ?? []).length
+assert(contarQuadros(normal) === QUADRO_SLOTS.length, `Ficha normal continua com os ${QUADRO_SLOTS.length} quadros (os vazios servem pra desenhar à mão)`)
+assert(contarQuadros(auxiliar) === 1, 'Ficha do auxiliar mostra só o quadro preenchido')
+assert(auxiliar.includes('quadros-grid lista') && !normal.includes('quadros-grid lista'), 'Só a ficha do auxiliar usa um exercício por linha')
+assert(normal.includes('class="quadro-court"') && !auxiliar.includes('class="quadro-court"'), 'Auxiliar: exercício sem desenho não mostra quadra em branco (a ficha normal mostra, pra desenhar à mão)')
+const vazia = { ...sessao, quadros: QUADRO_SLOTS.map((q) => ({ chave: q.chave })) }
+assert(gerarHtmlFichaTreino(vazia, turma, escola, { paraSubstituto: true }).includes('Nenhum exercício preenchido'), 'Auxiliar sem nenhum exercício: mostra aviso em vez de lista vazia')
+
 // Sem recado: o aviso aparece, mas sem a linha "Recado:".
 const semRecado = gerarHtmlFichaTreino({ ...sessao, recadoSubstituto: '   ' }, turma, escola, { paraSubstituto: true })
 assert(semRecado.includes('Treino para você aplicar') && !semRecado.includes('<b>Recado:</b>'), 'Sem recado: não mostra a linha de recado vazia')

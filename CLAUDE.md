@@ -14,6 +14,22 @@ precisa receber o código-fonte completo. Isso não é opcional.
    Conferir que a Release foi criada; se falhar, avisar o Rafael. Não remover
    nem desativar esse job.
 
+## EXIGÊNCIA: prévia com foto e autorização ANTES de publicar
+
+O Rafael não quer nenhuma mudança indo pro ar sem ver antes (pedido
+11/11/2026). Fluxo obrigatório:
+
+1. Fazer a mudança num branch separado (`previa/<assunto>`), nunca direto na
+   `main` (push na `main` publica o site na hora).
+2. Rodar testes e build, e tirar fotos (screenshots em tamanho de celular) de
+   como vai ficar, com antes/depois quando fizer sentido.
+3. Mandar as fotos pro Rafael e perguntar se pode publicar.
+4. Só depois do "pode subir" dele: juntar na `main`, conferir a publicação e a
+   Release, e mandar o zip do código-fonte.
+
+Isso vale também pra mudanças pequenas. Mudanças no banco (Supabase) também
+precisam de autorização antes.
+
 ## Projeto
 
 - App de scout de voleibol (PWA): Vite + React 19 + TypeScript + Tailwind 4 +
