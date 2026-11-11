@@ -42,3 +42,28 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Exigência do Rafael: TODA publicação gera um zip do código-fonte guardado
+  # como Release no GitHub (aba "Releases" do repositório), pra nunca perder
+  # nenhuma versão. Só roda depois que o site foi publicado com sucesso.
+  codigo-fonte:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gerar zip do código-fonte e criar Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DATA=$(TZ=America/Sao_Paulo date +%Y-%m-%d_%Hh%M)
+          CURTO=$(git rev-parse --short HEAD)
+          TAG="versao-${DATA}-${CURTO}"
+          ARQUIVO="rdsports-codigo-fonte-${DATA}.zip"
+          git archive --format=zip --prefix=rdsports/ -o "$ARQUIVO" HEAD
+          git log -1 --format=%B > notas.txt
+          gh release create "$TAG" "$ARQUIVO" \
+            --title "RDSports ${DATA//_/ }" \
+            --notes-file notas.txt \
+            --target "$GITHUB_SHA"
