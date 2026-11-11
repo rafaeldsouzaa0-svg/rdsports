@@ -10,6 +10,19 @@ export default defineConfig({
     // pra caber num upload direto (arrastar arquivos) no GitHub sem precisar
     // recriar estrutura de pastas.
     assetsDir: '',
+    // Bibliotecas em arquivos próprios: elas quase nunca mudam, então ficam no
+    // cache do celular e, a cada atualização do app, só o código do RDSports é
+    // baixado de novo.
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'vendor-react', test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/ },
+            { name: 'vendor-supabase', test: /node_modules[\\/](@supabase|iceberg-js|tslib)[\\/]/ },
+          ],
+        },
+      },
+    },
   },
   plugins: [
     react(),

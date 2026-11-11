@@ -11,7 +11,7 @@ npm run build    # gera o site em dist/
 npm run lint
 ```
 
-Testes da lógica de scout e relatórios ficam em `scripts/` (ex.: `node scripts/test-scout-engine.mjs`).
+Testes da lógica de scout e relatórios ficam em `scripts/test-*.mjs`. `npm test` roda todos; um só: `node --import tsx scripts/test-scout-engine.mjs`.
 
 ## Publicação
 

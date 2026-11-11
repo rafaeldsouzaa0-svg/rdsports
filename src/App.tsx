@@ -1,28 +1,41 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, Routes, Route, useLocation, matchPath } from 'react-router-dom'
 import { SidebarNav, TopoMobile } from './components/Nav'
-import Dashboard from './pages/Dashboard'
-import Escolas from './pages/Escolas'
-import EscolaDetalhe from './pages/EscolaDetalhe'
-import TurmaDetalhe from './pages/TurmaDetalhe'
-import AtletaPerfil from './pages/AtletaPerfil'
-import ModoJogo from './pages/ModoJogo'
-import Relatorio from './pages/Relatorio'
-import Historico from './pages/Historico'
-import Estatisticas from './pages/Estatisticas'
-import Calendario from './pages/Calendario'
-import Temporada from './pages/Temporada'
-import Configuracoes from './pages/Configuracoes'
-import Lixeira from './pages/Lixeira'
-import Treinos from './pages/Treinos'
-import SessaoTreinoForm from './pages/SessaoTreinoForm'
-import Login from './pages/auth/Login'
-import Cadastro from './pages/auth/Cadastro'
-import RecuperarSenha from './pages/auth/RecuperarSenha'
-import RedefinirSenha from './pages/auth/RedefinirSenha'
-import AtletaEntrar from './pages/atleta/Entrar'
-import AtletaPainel from './pages/atleta/Painel'
 import { initSyncManager } from './syncManager'
+
+// Cada tela é carregada só quando é aberta (code-splitting), pra o app abrir
+// mais rápido no celular. O service worker (PWA) continua guardando todas as
+// telas no cache, então o app segue funcionando offline durante o jogo.
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Escolas = lazy(() => import('./pages/Escolas'))
+const EscolaDetalhe = lazy(() => import('./pages/EscolaDetalhe'))
+const TurmaDetalhe = lazy(() => import('./pages/TurmaDetalhe'))
+const AtletaPerfil = lazy(() => import('./pages/AtletaPerfil'))
+const ModoJogo = lazy(() => import('./pages/ModoJogo'))
+const Relatorio = lazy(() => import('./pages/Relatorio'))
+const Historico = lazy(() => import('./pages/Historico'))
+const Estatisticas = lazy(() => import('./pages/Estatisticas'))
+const Calendario = lazy(() => import('./pages/Calendario'))
+const Temporada = lazy(() => import('./pages/Temporada'))
+const Configuracoes = lazy(() => import('./pages/Configuracoes'))
+const Lixeira = lazy(() => import('./pages/Lixeira'))
+const Treinos = lazy(() => import('./pages/Treinos'))
+const SessaoTreinoForm = lazy(() => import('./pages/SessaoTreinoForm'))
+const Login = lazy(() => import('./pages/auth/Login'))
+const Cadastro = lazy(() => import('./pages/auth/Cadastro'))
+const RecuperarSenha = lazy(() => import('./pages/auth/RecuperarSenha'))
+const RedefinirSenha = lazy(() => import('./pages/auth/RedefinirSenha'))
+const AtletaEntrar = lazy(() => import('./pages/atleta/Entrar'))
+const AtletaPainel = lazy(() => import('./pages/atleta/Painel'))
+
+/** Mostrado por um instante enquanto a tela é carregada pela primeira vez. */
+function Carregando() {
+  return (
+    <div className="flex justify-center py-16" role="status" aria-label="Carregando">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-current border-t-transparent opacity-40" />
+    </div>
+  )
+}
 
 /** Layout do app do treinador (sidebar no desktop, barra com menu ☰ no
  *  celular — pedido 30/10/2026, substituiu a barra de abas embaixo). O
@@ -44,6 +57,7 @@ function LayoutTreinador() {
       <div className="flex-1 flex flex-col min-w-0">
         {!telaCheia && <TopoMobile />}
         <main className={telaCheia ? 'flex-1 w-full p-3 pb-6' : 'flex-1 p-4 pb-6 max-w-5xl mx-auto w-full'}>
+        <Suspense fallback={<Carregando />}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/escolas" element={<Escolas />} />
@@ -65,6 +79,7 @@ function LayoutTreinador() {
           <Route path="/auth/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/auth/redefinir-senha" element={<RedefinirSenha />} />
         </Routes>
+        </Suspense>
         </main>
       </div>
     </div>
@@ -78,11 +93,13 @@ export default function App() {
 
   return (
     <HashRouter>
+      <Suspense fallback={<Carregando />}>
       <Routes>
         <Route path="/atleta/entrar" element={<AtletaEntrar />} />
         <Route path="/atleta/painel" element={<AtletaPainel />} />
         <Route path="/*" element={<LayoutTreinador />} />
       </Routes>
+      </Suspense>
     </HashRouter>
   )
 }
