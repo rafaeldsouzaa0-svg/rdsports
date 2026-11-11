@@ -60,22 +60,36 @@ async function enviar(tabela: string, linhas: LinhaSync[]) {
   }
 }
 
-/** Lê tudo da tabela, de 1000 em 1000 (o Supabase devolve no máximo 1000
- *  linhas por consulta). */
-async function lerTudo(tabela: string, ownerId: string) {
-  const linhas: { id: string; dados: unknown; updated_at: string | null; deleted_at: string | null }[] = []
-  for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase
-      .from(tabela)
-      .select('id, dados, updated_at, deleted_at')
-      .eq('owner_id', ownerId)
-      .order('id')
-      .range(de, de + 999)
-    if (error) throw new Error(`[sync] ${tabela}: ${error.message}`)
-    linhas.push(...(data ?? []))
-    if (!data || data.length < 1000) break
+/** Junta todas as páginas de uma consulta. O Supabase devolve no máximo 1000
+ *  linhas por consulta — sem isso, tabelas grandes (os lances de scout já
+ *  passaram de 1500) chegavam cortadas no aparelho. Se qualquer página der
+ *  erro, falha tudo: melhor não mesclar nada do que mesclar um jogo pela
+ *  metade. */
+export async function lerEmPaginas<T>(
+  buscarPagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  tamanho = 1000,
+): Promise<T[]> {
+  const todas: T[] = []
+  for (let de = 0; ; de += tamanho) {
+    const { data, error } = await buscarPagina(de, de + tamanho - 1)
+    if (error) throw new Error(error.message)
+    todas.push(...(data ?? []))
+    if (!data || data.length < tamanho) break
   }
-  return linhas
+  return todas
+}
+
+/** Todas as linhas da conta numa tabela, em ordem de id (ordem fixa, pra
+ *  nenhuma linha pular ou repetir entre uma página e outra). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function lerTabelaInteira(tabela: string, ownerId: string, colunas = '*'): Promise<any[]> {
+  try {
+    return await lerEmPaginas((de, ate) =>
+      supabase.from(tabela).select(colunas).eq('owner_id', ownerId).order('id').range(de, ate),
+    )
+  } catch (e) {
+    throw new Error(`[sync] ${tabela}: ${(e as Error).message}`)
+  }
 }
 
 export async function enviarTreinos(
@@ -87,7 +101,11 @@ export async function enviarTreinos(
 }
 
 export async function lerTreinos(ownerId: string): Promise<{ sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[] }> {
-  const [sessoes, exercicios] = await Promise.all([lerTudo('sessoes_treino', ownerId), lerTudo('exercicios_biblioteca', ownerId)])
+  const colunas = 'id, dados, updated_at, deleted_at'
+  const [sessoes, exercicios] = await Promise.all([
+    lerTabelaInteira('sessoes_treino', ownerId, colunas),
+    lerTabelaInteira('exercicios_biblioteca', ownerId, colunas),
+  ])
   return {
     sessoesTreino: sessoes.map((l) => daLinha<SessaoTreino>(l)),
     bibliotecaExercicios: exercicios.map((l) => daLinha<ExercicioBiblioteca>(l)),

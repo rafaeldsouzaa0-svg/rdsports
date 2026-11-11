@@ -11,7 +11,7 @@
 // Turma e uma Temporada ativa do ano atual — só pra satisfazer as colunas obrigatórias
 // do schema antigo, sem expor isso na UI.
 import { supabase } from './supabaseClient'
-import { enviarTreinos, lerTreinos } from './syncTreinos'
+import { enviarTreinos, lerTreinos, lerTabelaInteira } from './syncTreinos'
 import {
   normalizarPosicao,
   type Escola, type Turma, type Atleta, type Adversario, type Campeonato, type Partida, type SetPartida, type Rally, type RallyEvento,
@@ -292,23 +292,29 @@ export async function pullAll(): Promise<DadosNuvem | null> {
   const ownerId = await getOwnerId()
   if (!ownerId) return null
 
-  const [escolasR, turmasR, equipesR, atletasR, historicoR, adversariosR, campeonatosR, partidasR, setsR, ralliesR, eventosR, calendarioR, avaliacoesR, substituicoesR] =
-    await Promise.all([
-      supabase.from('escolas').select('*').eq('owner_id', ownerId),
-      supabase.from('turmas').select('*').eq('owner_id', ownerId),
-      supabase.from('equipes').select('*').eq('owner_id', ownerId),
-      supabase.from('atletas').select('*').eq('owner_id', ownerId),
-      supabase.from('atleta_equipe_historico').select('*').eq('owner_id', ownerId),
-      supabase.from('adversarios').select('*').eq('owner_id', ownerId),
-      supabase.from('campeonatos').select('*').eq('owner_id', ownerId),
-      supabase.from('partidas').select('*').eq('owner_id', ownerId),
-      supabase.from('sets_partida').select('*').eq('owner_id', ownerId),
-      supabase.from('rallies').select('*').eq('owner_id', ownerId),
-      supabase.from('rally_eventos').select('*').eq('owner_id', ownerId),
-      supabase.from('eventos_calendario').select('*').eq('owner_id', ownerId),
-      supabase.from('avaliacoes').select('*').eq('owner_id', ownerId),
-      supabase.from('substituicoes').select('*').eq('owner_id', ownerId),
-    ])
+  // CORREÇÃO (11/11/2026): cada tabela é lida INTEIRA, de 1000 em 1000. Antes
+  // era uma consulta só por tabela, e o Supabase corta em 1000 linhas — com
+  // os lances de scout passando de 1500, jogos chegavam no aparelho com
+  // lances faltando (e, como a cópia da nuvem é sempre a "mais nova", o jogo
+  // incompleto substituía o completo no aparelho). Se alguma leitura falhar,
+  // nada é mesclado nessa rodada (o erro sobe pro syncManager).
+  const lidas = await Promise.all([
+    lerTabelaInteira('escolas', ownerId),
+    lerTabelaInteira('turmas', ownerId),
+    lerTabelaInteira('equipes', ownerId),
+    lerTabelaInteira('atletas', ownerId),
+    lerTabelaInteira('atleta_equipe_historico', ownerId),
+    lerTabelaInteira('adversarios', ownerId),
+    lerTabelaInteira('campeonatos', ownerId),
+    lerTabelaInteira('partidas', ownerId),
+    lerTabelaInteira('sets_partida', ownerId),
+    lerTabelaInteira('rallies', ownerId),
+    lerTabelaInteira('rally_eventos', ownerId),
+    lerTabelaInteira('eventos_calendario', ownerId),
+    lerTabelaInteira('avaliacoes', ownerId),
+    lerTabelaInteira('substituicoes', ownerId),
+  ])
+  const [escolasR, turmasR, equipesR, atletasR, historicoR, adversariosR, campeonatosR, partidasR, setsR, ralliesR, eventosR, calendarioR, avaliacoesR, substituicoesR] = lidas.map((data) => ({ data }))
 
   const escolas: Escola[] = (escolasR.data ?? []).map((e) => ({
     id: e.id, nome: e.nome, logoUrl: e.logo_url ?? undefined, createdAt: e.created_at, updatedAt: e.updated_at ?? undefined, deletedAt: e.deleted_at ?? undefined,
