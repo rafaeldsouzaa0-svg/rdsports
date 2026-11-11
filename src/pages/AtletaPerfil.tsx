@@ -10,6 +10,7 @@ import { gerarHtmlPerfilAtleta, gerarHtmlRelatorioAtleta, baixarHtml, abrirParaI
 import { analisePorAtletaEPosicao } from '../scoutEngine'
 import { formatDate } from '../utils'
 import { calcularIdade } from '../convocacao'
+import GraficoEvolucao from '../components/GraficoEvolucao'
 
 const ROMANO_POS = ['I', 'II', 'III', 'IV', 'V', 'VI']
 
@@ -81,18 +82,10 @@ function EvolucaoIndividual({ atletaId, partidas }: { atletaId: string; partidas
       <div className="text-xs font-bold mb-3 flex items-center gap-1.5 text-[var(--rd-text-dim)] uppercase tracking-wide">
         <TrendingUp size={13} /> Evolução na temporada (do jogo mais antigo pro mais recente)
       </div>
-      <div className="flex items-end gap-1.5 h-24">
-        {cronologico.map(({ partida, totalGeral }, i) => {
-          const alturaPct = Math.max(4, ((totalGeral.eficiencia + 100) / 200) * 100)
-          return (
-            <div key={partida.id} className="flex-1 min-w-0 flex flex-col items-center justify-end h-full gap-1" title={`vs ${partida.adversarioNome ?? 'Adversário'} — ${partida.data} — ${totalGeral.eficiencia}%`}>
-              <span className="text-[9px] font-bold" style={{ color: corEficienciaBg(totalGeral.eficiencia) }}>{totalGeral.eficiencia}%</span>
-              <div className="w-full rounded-t" style={{ height: `${alturaPct}%`, background: corEficienciaBg(totalGeral.eficiencia), minHeight: 3 }} />
-              <span className="text-[8px] text-[var(--rd-text-dim)]">{i + 1}ª</span>
-            </div>
-          )
-        })}
-      </div>
+      <GraficoEvolucao
+        cor={corEficienciaBg}
+        pontos={cronologico.map(({ partida, totalGeral }) => ({ partida, eficiencia: totalGeral.eficiencia, detalhe: `${totalGeral.total} ações dela` }))}
+      />
       <p className="text-[11px] text-[var(--rd-text-dim)] mt-2">Eficiência geral da atleta em cada partida — todas as ações dela, positivo − erro ÷ total.</p>
     </Card>
   )

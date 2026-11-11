@@ -144,6 +144,7 @@ export async function pushAll(estado: {
         id: j.id, owner_id: ownerId, tipo: 'JOGO', titulo: j.adversarioNome, data: j.data,
         hora_inicio: j.horario ?? null, local: j.local ?? null,
         convocadas: j.convocadas ?? null, formato: j.formato ?? null, campeonato: j.campeonatoNome ?? null,
+        checklist: j.checklist ?? null,
         equipe_id: turma ? await getOrCreateEquipeDaTurma(ownerId, turma) : null,
         created_at: j.createdAt, deleted_at: j.deletedAt ?? null,
       })
@@ -440,6 +441,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
       adversarioNome: e.titulo, data: e.data, horario: e.hora_inicio ?? undefined, local: e.local ?? undefined,
       convocadas: Array.isArray(e.convocadas) && e.convocadas.length ? (e.convocadas as string[]) : undefined,
       formato: (e.formato ?? undefined) as FormatoPartida | undefined, campeonatoNome: e.campeonato ?? undefined,
+      checklist: Array.isArray(e.checklist) ? (e.checklist as { item: string; feito: boolean }[]) : undefined,
       createdAt: e.created_at, updatedAt: e.updated_at ?? undefined, deletedAt: e.deleted_at ?? undefined,
     }))
     .filter((j) => j.turmaId)

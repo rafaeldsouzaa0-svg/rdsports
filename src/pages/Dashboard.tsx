@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { PageTitle, Card, EmptyState, Button } from '../components/ui'
 import { LogoExibicao } from '../components/LogoUpload'
 import { SugestaoFocoCard } from '../components/SugestaoFocoCard'
+import ProximoJogoCard from '../components/ProximoJogoCard'
 import { parseDataLocal, aproveitamento, formatDate, encontrarLogoAdversario } from '../utils'
 import { Link } from 'react-router-dom'
 
@@ -63,6 +64,8 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      <ProximoJogoCard />
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         {kpis.map((k) => (

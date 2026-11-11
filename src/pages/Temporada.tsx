@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { PageTitle, Card, EmptyState } from '../components/ui'
 import { scoutEquipe, erroPorFundamentoAdversario, eficienciaGeralEquipe, FUNDAMENTOS_SCOUT, LABEL_FUNDAMENTO } from '../scoutEngine'
 import type { Partida, SetPartida, Turma } from '../types'
+import GraficoEvolucao from '../components/GraficoEvolucao'
 
 function piorFundamentoEquipe(equipe: ReturnType<typeof scoutEquipe>): { fundamento: string; eficiencia: number } | null {
   let pior: { f: keyof typeof equipe; eficiencia: number } | null = null
@@ -42,18 +43,7 @@ function EvolucaoTemporada({ jogos }: { jogos: Partida[] }) {
       <div className="text-xs font-bold mb-3 flex items-center gap-1.5 text-[var(--rd-text-dim)] uppercase tracking-wide">
         <TrendingUp size={13} /> Evolução da eficiência geral (do jogo mais antigo pro mais recente)
       </div>
-      <div className="flex items-end gap-1.5 h-24">
-        {pontos.map(({ partida, geral }, i) => {
-          const alturaPct = Math.max(4, ((geral.eficiencia + 100) / 200) * 100) // -100%..100% -> 0..100%
-          return (
-            <div key={partida.id} className="flex-1 min-w-0 flex flex-col items-center justify-end h-full gap-1" title={`vs ${partida.adversarioNome ?? 'Adversário'} — ${partida.data} — ${geral.eficiencia}%`}>
-              <span className="text-[9px] font-bold" style={{ color: corEficiencia(geral.eficiencia) }}>{geral.eficiencia}%</span>
-              <div className="w-full rounded-t" style={{ height: `${alturaPct}%`, background: corEficiencia(geral.eficiencia), minHeight: 3 }} />
-              <span className="text-[8px] text-[var(--rd-text-dim)]">{i + 1}ª</span>
-            </div>
-          )
-        })}
-      </div>
+      <GraficoEvolucao cor={corEficiencia} pontos={pontos.map(({ partida, geral }) => ({ partida, eficiencia: geral.eficiencia }))} />
       <p className="text-[11px] text-[var(--rd-text-dim)] mt-2">
         Eficiência geral = todas as ações nossas da partida, recalculadas (positivo − erro) ÷ total — não é a soma nem a média de jogos diferentes.
       </p>
