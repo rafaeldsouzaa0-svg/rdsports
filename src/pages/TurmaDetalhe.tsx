@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { Users, Plus, Trash2, Dumbbell, CalendarPlus, CalendarDays, Pencil } from 'lucide-react'
+import { Users, Plus, Trash2, Dumbbell, CalendarPlus, CalendarDays, Pencil, MessageCircle, Copy } from 'lucide-react'
 import { useStore } from '../store'
 import { PageTitle, Card, Button, EmptyState, Field, BotaoVoltar } from '../components/ui'
 import ConvocacaoForm from '../components/ConvocacaoForm'
 import { FORMATOS_PARTIDA } from '../types'
 import type { FormatoPartida } from '../types'
-import { calcularIdade, formatarDataBR, nivelDaTurma } from '../convocacao'
+import { calcularIdade, formatarDataBR, nivelDaTurma, textoConvocacaoWhatsApp, linkWhatsApp } from '../convocacao'
 import { formatDate } from '../utils'
 
 export default function TurmaDetalhe() {
@@ -17,6 +17,8 @@ export default function TurmaDetalhe() {
   const [formato, setFormato] = useState<FormatoPartida>('MELHOR_DE_5')
   // null = formulário fechado; 'novo' = agendando; id = editando a convocação daquele jogo.
   const [formJogo, setFormJogo] = useState<string | null>(null)
+  // Aviso "texto copiado" por jogo (id do jogo copiado por último).
+  const [copiado, setCopiado] = useState<string | null>(null)
   const turmaEncontrada = turmas.find((t) => t.id === id)
   const meusAtletas = atletas.filter((a) => a.turmaId === id && !a.deletedAt)
 
@@ -28,6 +30,24 @@ export default function TurmaDetalhe() {
     .filter((j) => j.turmaId === turmaId && !j.deletedAt && j.data >= hoje)
     .sort((a, b) => a.data.localeCompare(b.data))
   const nivelAuto = nivelDaTurma({ nome: turma.nome })
+  const escolaNome = escolas.find((e) => e.id === turma.escolaId)?.nome
+
+  // Enviar a convocação pro coordenador pelo WhatsApp (pedido 12/11/2026).
+  function textoDoJogo(j: (typeof proximosJogos)[number]) {
+    return textoConvocacaoWhatsApp(j, turma, escolaNome, atletas, turmas)
+  }
+  function enviarWhatsApp(j: (typeof proximosJogos)[number]) {
+    window.open(linkWhatsApp(textoDoJogo(j)), '_blank', 'noopener')
+  }
+  async function copiarTexto(j: (typeof proximosJogos)[number]) {
+    try {
+      await navigator.clipboard.writeText(textoDoJogo(j))
+      setCopiado(j.id)
+      setTimeout(() => setCopiado((c) => (c === j.id ? null : c)), 2500)
+    } catch {
+      setCopiado(null)
+    }
+  }
 
   // Scout de JOGO só começa pelo Calendário (pedido 11/11/2026), a partir de
   // um jogo agendado com convocação. Aqui na turma fica só o Treino.
@@ -66,7 +86,8 @@ export default function TurmaDetalhe() {
                 <ConvocacaoForm turma={turma} jogo={j} onPronto={() => setFormJogo(null)} />
               </div>
             ) : (
-              <div key={j.id} className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ border: '1px solid var(--rd-border)' }}>
+              <div key={j.id} className="rounded-lg px-3 py-2.5" style={{ border: '1px solid var(--rd-border)' }}>
+              <div className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold">vs {j.adversarioNome}</div>
                   <div className="text-xs text-[var(--rd-text-dim)]">
@@ -80,6 +101,22 @@ export default function TurmaDetalhe() {
                 <Button onClick={() => setFormJogo(j.id)} aria-label="Editar convocação"><Pencil size={16} /></Button>
                 <Button onClick={() => navigate('/calendario', { state: { abrirDia: j.data } })} aria-label="Ver no calendário"><CalendarDays size={16} /></Button>
                 <Button variant="danger" onClick={() => { if (confirm(`Excluir o jogo contra ${j.adversarioNome}?`)) deleteJogoAgendado(j.id) }} aria-label="Excluir jogo"><Trash2 size={16} /></Button>
+              </div>
+              {/* Mandar a convocação pro coordenador (pedido 12/11/2026). */}
+              <div className="flex gap-2 mt-2.5">
+                <button
+                  type="button"
+                  className="rd-btn flex-1 justify-center font-bold"
+                  style={{ background: '#25D366', borderColor: '#25D366', color: '#05300f', minHeight: 44 }}
+                  onClick={() => enviarWhatsApp(j)}
+                >
+                  <MessageCircle size={18} /> Enviar no WhatsApp
+                </button>
+                <Button onClick={() => copiarTexto(j)} aria-label="Copiar texto da convocação" style={{ minHeight: 44 }}>
+                  <Copy size={16} />
+                </Button>
+              </div>
+              {copiado === j.id && <p className="text-xs mt-1.5 text-center" role="status">Texto copiado ✓ Cole no WhatsApp, e-mail ou onde quiser.</p>}
               </div>
             )
           ))}
