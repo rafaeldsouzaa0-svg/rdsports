@@ -18,6 +18,7 @@ import { Volleyball, Undo2, Square, Shield, Users, Check, ArrowLeftRight, AlertT
 import { atletasDaPartida } from '../convocacao'
 import { useTelaAcesa } from '../telaAcesa'
 import PainelVoz, { type MarcacaoVoz } from '../components/PainelVoz'
+import { separarApelidos } from '../scoutVoz'
 import PlayerVideo, { type ControlePlayer, type FonteVideo } from '../components/PlayerVideo'
 import { carimbarVideo, idYoutube, lancesComVideo } from '../videoJogo'
 import { detectarEfeitoPonto, type EfeitoPonto } from '../efeitoPonto'
@@ -730,7 +731,7 @@ export default function ModoJogo() {
       cor: (l.lado === 'CASA') === (l.resultado === 'ERRO') ? 'var(--rd-erro)' : l.resultado === 'ACERTO' || l.resultado === 'BOM' || (l.lado === 'ADVERSARIO' && l.resultado === 'ERRO') ? 'var(--rd-positivo)' : 'var(--rd-neutro)',
     }))
     : []
-  const paraVoz = (a: { id: string; nome: string; numero?: string }) => ({ id: a.id, nome: a.nome, numero: a.numero })
+  const paraVoz = (a: { id: string; nome: string; numero?: string; apelidos?: string }) => ({ id: a.id, nome: a.nome, numero: a.numero, apelidos: separarApelidos(a.apelidos) })
   const todasVoz = meusAtletas.map(paraVoz)
   const atletasEmQuadraVoz = rotacao
     ? rotacao.posicoes.map((idA) => meusAtletas.find((a) => a.id === idA)).filter((a): a is NonNullable<typeof a> => !!a).map(paraVoz)

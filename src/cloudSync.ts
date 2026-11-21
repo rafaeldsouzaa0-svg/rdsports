@@ -389,6 +389,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
       numero: a.numero != null ? String(a.numero) : undefined,
       posicaoPrincipal: normalizarPosicao(a.posicao), posicaoSecundaria: normalizarPosicao(a.posicao_secundaria), fotoUrl: a.foto_url ?? undefined,
       idade: a.idade ?? undefined, nascimento: a.nascimento ?? undefined, alturaCm: a.altura ?? undefined, codigoAcesso: a.codigo_acesso ?? undefined,
+      apelidos: a.apelidos ?? undefined,
       status: (a.status ? a.status.toUpperCase() : 'ATIVA') as Atleta['status'],
       createdAt: a.created_at, updatedAt: a.updated_at ?? undefined, deletedAt: a.deleted_at ?? undefined,
     }))

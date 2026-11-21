@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, Undo2, Volume2, VolumeX, Keyboard } from 'lucide-react'
 import {
-  interpretarFalaVarias, fraseConfirmacao, resultadosPossiveis, SEM_RESULTADO, LABEL_FUNDAMENTO_VOZ, LABEL_RESULTADO_VOZ,
+  escolherMelhorFala, fraseConfirmacao, resultadosPossiveis, SEM_RESULTADO, LABEL_FUNDAMENTO_VOZ, LABEL_RESULTADO_VOZ,
   type AtletaVoz, type Jogada,
 } from '../scoutVoz'
 import { useReconhecimentoVoz, falar } from '../useReconhecimentoVoz'
@@ -102,11 +102,13 @@ export default function PainelVoz({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onMarcar, comSom, todas])
 
-  const processar = useCallback((fala: string) => {
-    setOuvido(fala)
+  const processar = useCallback((alternativas: string[]) => {
+    // Várias versões do que o microfone ouviu: fica com a que o scout
+    // entende melhor (21/11/2026 — ginásio barulhento).
+    const { texto: fala, fala: c } = escolherMelhorFala(alternativas, { emQuadra, todas, sacadoraId }, listaRef.current !== null)
+    setOuvido(fala || alternativas[0] || '')
     setAviso(null)
     setMarcado(null)
-    const c = interpretarFalaVarias(fala, { emQuadra, todas, sacadoraId }, listaRef.current !== null)
     if (c.tipo === 'vazio') { setAviso('Não entendi. Toque e fale de novo.'); return }
     if (c.tipo === 'confirmar') {
       const atual = listaRef.current
@@ -172,7 +174,7 @@ export default function PainelVoz({
     e.preventDefault()
     if (!texto.trim()) return
     if (!listaRef.current) aoComecar?.()
-    processar(texto.trim())
+    processar([texto.trim()])
     setTexto('')
   }
 
@@ -323,7 +325,7 @@ export default function PainelVoz({
               <span>{frase}</span><span className="text-xs text-[var(--rd-text-dim)] text-right">{dica}</span>
             </div>
           ))}
-          <p className="text-xs text-[var(--rd-text-dim)] mt-2">Pode falar o número da camisa ("camisa 7") no lugar do nome. Em ginásio barulhento, fale perto do celular.</p>
+          <p className="text-xs text-[var(--rd-text-dim)] mt-2">Pode falar o número da camisa ("camisa 7"), o sobrenome ou o apelido (cadastrado no perfil da atleta) no lugar do nome. Em ginásio barulhento, fale perto do celular ou use fone com microfone.</p>
         </div>
       )}
     </div>

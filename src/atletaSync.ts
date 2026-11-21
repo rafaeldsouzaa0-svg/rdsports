@@ -19,6 +19,7 @@ export function linhaAtletaNuvem(a: Atleta, ownerId: string) {
     posicao: a.posicaoPrincipal ?? POSICAO_VAZIA_NUVEM,
     posicao_secundaria: a.posicaoSecundaria ?? null, foto_url: a.fotoUrl ?? null,
     idade: a.idade ?? null, nascimento: a.nascimento ?? null, altura: a.alturaCm ?? null, codigo_acesso: a.codigoAcesso ?? null,
+    apelidos: a.apelidos?.trim() || null,
     status: (a.status ?? 'ATIVA').toLowerCase(), created_at: a.createdAt, deleted_at: a.deletedAt ?? null,
   }
 }

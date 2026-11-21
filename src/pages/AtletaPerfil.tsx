@@ -283,6 +283,16 @@ export default function AtletaPerfil() {
               onChange={(e) => updateAtleta(atleta.id, { numero: e.target.value || undefined })}
             />
           </Field>
+          {/* Apelidos (21/11/2026): o scout por voz reconhece a atleta por eles. */}
+          <Field label="Apelidos (pro scout por voz)">
+            <input
+              className="rd-input"
+              placeholder="Cacau, Clau"
+              value={atleta.apelidos ?? ''}
+              onChange={(e) => updateAtleta(atleta.id, { apelidos: e.target.value || undefined })}
+            />
+            <span className="block text-[11px] text-[var(--rd-text-dim)] mt-1">Separe por vírgula. No scout por voz, falar o apelido ou o sobrenome também acha a atleta.</span>
+          </Field>
         </div>
       </Card>
 

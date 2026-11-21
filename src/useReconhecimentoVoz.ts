@@ -4,7 +4,7 @@
 // a confirmação em voz alta (`falar`).
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-interface ResultadoReconhecimento { 0: { transcript: string }; isFinal: boolean }
+interface ResultadoReconhecimento { [k: number]: { transcript: string }; length: number; isFinal: boolean }
 interface EventoReconhecimento { results: ArrayLike<ResultadoReconhecimento> }
 interface Reconhecedor {
   lang: string
@@ -30,7 +30,13 @@ export function vozDisponivel(): boolean {
   return construtor() !== null
 }
 
-export function useReconhecimentoVoz(aoOuvir: (texto: string) => void) {
+/** Quantas versões do que ouviu pedir ao reconhecimento (21/11/2026: no
+ *  barulho do ginásio, a 2ª ou 3ª versão às vezes é a certa — ver
+ *  scoutVoz.escolherMelhorFala). Safari no iPhone costuma devolver só uma. */
+const ALTERNATIVAS = 5
+
+/** `aoOuvir` recebe as versões do que foi ouvido, da mais provável pra menos. */
+export function useReconhecimentoVoz(aoOuvir: (alternativas: string[]) => void) {
   const [ouvindo, setOuvindo] = useState(false)
   const [parcial, setParcial] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -47,15 +53,25 @@ export function useReconhecimentoVoz(aoOuvir: (texto: string) => void) {
     r.lang = 'pt-BR'
     r.interimResults = true
     r.continuous = false
-    r.maxAlternatives = 1
-    let final = ''
+    r.maxAlternatives = ALTERNATIVAS
+    let finais: string[] = []
     r.onresult = (e) => {
       let texto = ''
-      for (let i = 0; i < e.results.length; i++) {
-        texto += e.results[i][0].transcript
-        if (e.results[i].isFinal) final = texto
-      }
+      for (let i = 0; i < e.results.length; i++) texto += e.results[i][0].transcript
       setParcial(texto)
+      // Versão k da frase = alternativa k de cada pedaço (ou a 1ª, se o
+      // pedaço não tiver tantas).
+      if (e.results.length > 0 && e.results[e.results.length - 1].isFinal) {
+        const maxK = Math.max(...Array.from({ length: e.results.length }, (_, i) => e.results[i].length || 1))
+        finais = Array.from({ length: maxK }, (_, k) => {
+          let t = ''
+          for (let i = 0; i < e.results.length; i++) {
+            const res = e.results[i]
+            t += (res[k] ?? res[0]).transcript
+          }
+          return t.trim()
+        }).filter((t, idx, arr) => t && arr.indexOf(t) === idx)
+      }
     }
     r.onerror = (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setErro('O microfone está bloqueado. Libere o microfone para este site nas configurações do navegador.')
@@ -66,7 +82,7 @@ export function useReconhecimentoVoz(aoOuvir: (texto: string) => void) {
     r.onend = () => {
       setOuvindo(false)
       rec.current = null
-      if (final.trim()) callback.current(final.trim())
+      if (finais.length) callback.current(finais)
     }
     setErro(null)
     setParcial('')
