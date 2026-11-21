@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { User, Download, Printer, KeyRound, RefreshCw, Copy, Check, MapPin, TrendingUp } from 'lucide-react'
+import { Download, Printer, KeyRound, RefreshCw, Copy, Check, MapPin, TrendingUp, Camera } from 'lucide-react'
 import { useStore } from '../store'
-import { PageTitle, Card, Button, Field, BotaoVoltar } from '../components/ui'
+import { Card, Button, Field, BotaoVoltar } from '../components/ui'
+import AvatarAtleta from '../components/AvatarAtleta'
 import { LogoUpload } from '../components/LogoUpload'
 import { POSICOES, normalizarPosicao, type Posicao } from '../types'
 import { calcularRating, agregarScoutAtleta, partidasComParticipacao, setsFinalizados } from '../rating'
@@ -133,6 +134,28 @@ export default function AtletaPerfil() {
   // Inclui jogos em que ela foi convocada como reforço de outra turma (11/11/2026).
   const partidasDaTurma = partidas.filter((p) => p.turmaId === atleta.turmaId || p.convocadas?.includes(atleta.id))
 
+  // Visual "Álbum" (21/11/2026): posição dela no ranking de rating da turma
+  // (só entre colegas que já têm ações registradas) e 3 números de destaque.
+  const colocacaoNaTurma = (() => {
+    if (rating.totalAcoes === 0) return null
+    const notas = atletas
+      .filter((a) => !a.deletedAt && a.turmaId === atleta.turmaId)
+      .map((a) => calcularRating(agregarScoutAtleta(a.id, partidas), normalizarPosicao(a.posicaoPrincipal), normalizarPosicao(a.posicaoSecundaria)))
+      .filter((r) => r.totalAcoes > 0)
+      .map((r) => r.rating)
+    if (notas.length < 2) return null
+    return notas.filter((n) => n > rating.rating).length + 1
+  })()
+  const nomePosicao = POSICOES.find((p) => p.valor === posicaoNormalizada)?.label
+  const nomePosicaoSec = posicaoSecundariaNormalizada && posicaoSecundariaNormalizada !== posicaoNormalizada
+    ? POSICOES.find((p) => p.valor === posicaoSecundariaNormalizada)?.label
+    : undefined
+  const numerosDestaque = [
+    { rotulo: 'Ataque', valor: `${scoutAgregado.ataque.eficiencia}%`, cor: corEficienciaBg(scoutAgregado.ataque.eficiencia), tem: scoutAgregado.ataque.total > 0 },
+    { rotulo: 'Recepção', valor: `${scoutAgregado.recepcao.eficiencia}%`, cor: corEficienciaBg(scoutAgregado.recepcao.eficiencia), tem: scoutAgregado.recepcao.total > 0 },
+    { rotulo: 'Erros de saque', valor: String(scoutAgregado.saque.erro), cor: scoutAgregado.saque.erro > 0 ? 'var(--rd-erro)' : 'var(--rd-positivo)', tem: scoutAgregado.saque.total > 0 },
+  ]
+
   function compartilhar(modo: 'html' | 'pdf') {
     const html = gerarHtmlPerfilAtleta({ ...atleta!, posicaoPrincipal: posicaoNormalizada, posicaoSecundaria: posicaoSecundariaNormalizada }, scoutAgregado, rating, partidasInfo)
     if (modo === 'html') baixarHtml(html, `RDSports_perfil_${slugify(atleta!.nome)}.html`)
@@ -148,36 +171,51 @@ export default function AtletaPerfil() {
   }
 
   return (
-    <div>
+    <div className="rd-album">
       <BotaoVoltar to={`/turmas/${atleta.turmaId}`} label={turma?.nome ?? 'Turma'} />
-      <PageTitle
-        icon={<User size={24} />}
-        title={atleta.nome}
-        subtitle={turma ? `Turma: ${turma.nome}` : undefined}
-      />
 
-      <Card className="mb-5">
-        <LogoUpload
-          logoUrl={atleta.fotoUrl} prefixo="atleta" id={atleta.id} nome={atleta.nome} tamanho={72}
-          onEnviado={(url) => updateAtleta(atleta.id, { fotoUrl: url })}
-        />
-      </Card>
-
-      <Card className="mb-5 text-center">
-        <div className="text-xs font-bold uppercase tracking-wide text-[var(--rd-text-dim)]">
-          Rating
-          {posicaoNormalizada && ` (${POSICOES.find((p) => p.valor === posicaoNormalizada)?.label}`}
-          {posicaoSecundariaNormalizada && posicaoSecundariaNormalizada !== posicaoNormalizada && ` + ${POSICOES.find((p) => p.valor === posicaoSecundariaNormalizada)?.label}`}
-          {posicaoNormalizada && ')'}
+      {/* Cabeçalho "Álbum": foto/iniciais com anel dourado, nome, etiquetas e a nota. */}
+      <div className="text-center mb-5">
+        <AvatarAtleta nome={atleta.nome} fotoUrl={atleta.fotoUrl} tamanho={96} ouro />
+        <h1 className="text-2xl font-black tracking-tight mt-3">{atleta.nome}</h1>
+        <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+          {nomePosicao && <span className="rd-chip">{nomePosicao}{nomePosicaoSec ? ` + ${nomePosicaoSec}` : ''}</span>}
+          {atleta.numero && <span className="rd-chip">nº {atleta.numero}</span>}
+          {turma && <span className="rd-chip">{turma.nome}</span>}
         </div>
-        <div className="text-5xl font-black tracking-tight mt-1" style={{ color: corRating(rating.rating) }}>
-          {rating.rating.toFixed(1)}
+        <div className="text-6xl font-black tracking-tight mt-3 leading-none rd-accent-text">
+          {rating.rating.toFixed(1).replace('.', ',')}
         </div>
-        <div className="text-xs text-[var(--rd-text-dim)] mt-1">
+        <div className="flex flex-wrap justify-center items-center gap-1.5 mt-2">
+          <span className="rd-chip" style={{ color: corRating(rating.rating) }}>
+            {rating.totalAcoes === 0 ? 'sem partidas finalizadas ainda' : rating.rating >= 8 ? 'rating bom' : rating.rating >= 7 ? 'rating mediano' : 'rating pede atenção'}
+          </span>
+          {colocacaoNaTurma === 1 && <span className="rd-chip rd-chip-gold">melhor da turma</span>}
+          {colocacaoNaTurma !== null && colocacaoNaTurma > 1 && <span className="rd-chip">{colocacaoNaTurma}ª da turma</span>}
+        </div>
+        <div className="text-xs text-[var(--rd-text-dim)] mt-2">
           {rating.totalAcoes} ações registradas
           {rating.confianca < 1 && rating.totalAcoes > 0 && ` • amostra ainda pequena (confiança ${Math.round(rating.confianca * 100)}%)`}
-          {rating.totalAcoes === 0 && ' • sem partidas finalizadas ainda'}
         </div>
+      </div>
+
+      {rating.totalAcoes > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-5 max-w-md mx-auto">
+          {numerosDestaque.map((n) => (
+            <Card key={n.rotulo} className="text-center !px-2 !py-3">
+              <div className="text-2xl font-black leading-tight" style={{ color: n.tem ? n.cor : 'var(--rd-text-dim)' }}>{n.tem ? n.valor : '—'}</div>
+              <div className="text-[11px] text-[var(--rd-text-dim)] mt-0.5">{n.rotulo}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card className="mb-5">
+        <div className="font-bold text-sm mb-3 flex items-center gap-2"><Camera size={16} className="rd-accent-text" /> Foto</div>
+        <LogoUpload
+          logoUrl={atleta.fotoUrl} prefixo="atleta" id={atleta.id} nome={atleta.nome} tamanho={56}
+          onEnviado={(url) => updateAtleta(atleta.id, { fotoUrl: url })}
+        />
       </Card>
 
       <Card className="mb-5">
