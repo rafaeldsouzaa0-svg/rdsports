@@ -12,6 +12,7 @@
 // do schema antigo, sem expor isso na UI.
 import { supabase } from './supabaseClient'
 import { enviarTreinos, lerTreinos, lerTabelaInteira } from './syncTreinos'
+import { colunasFormato, formatoDaLinha } from './formatoPartidaSync'
 import {
   normalizarPosicao,
   type Escola, type Turma, type Atleta, type Adversario, type Campeonato, type Partida, type SetPartida, type Rally, type RallyEvento,
@@ -235,7 +236,7 @@ export async function pushAll(estado: {
         convocadas: p.convocadas ?? null,
         status: p.status === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
         sets_ganhos_casa: p.setsGanhosCasa, sets_ganhos_adversario: p.setsGanhosAdversario,
-        pontos_set_decisivo: p.formato === 'TRES_OBRIGATORIOS_25' ? 25 : 15,
+        ...colunasFormato(p),
         criada_em: p.createdAt, deleted_at: p.deletedAt ?? null,
       })
 
@@ -441,13 +442,13 @@ export async function pullAll(): Promise<DadosNuvem | null> {
           }
         })
       const turmaId = p.turma_id ?? (p.equipe_id ? equipeParaTurma.get(p.equipe_id) : undefined) ?? ''
-      const formato: FormatoPartida = p.pontos_set_decisivo === 25 ? 'TRES_OBRIGATORIOS_25' : 'MELHOR_DE_5'
+      const formatoEPontos = formatoDaLinha(p)
       return {
         id: p.id, tipo: (p.tipo ?? 'JOGO') as Partida['tipo'], turmaId,
         adversarioId: p.adversario_id ?? undefined,
         adversarioNome: adversariosData.find((a) => a.id === p.adversario_id)?.nome,
         campeonato: p.campeonato ?? undefined, campeonatoId: p.campeonato_id ?? undefined,
-        formato, data: p.data, local: p.local ?? undefined,
+        ...formatoEPontos, data: p.data, local: p.local ?? undefined,
         status: p.status === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
         setsPartida: sets, setsGanhosCasa: p.sets_ganhos_casa, setsGanhosAdversario: p.sets_ganhos_adversario,
         observacoes: p.observacoes ?? undefined,
