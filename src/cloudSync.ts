@@ -13,6 +13,7 @@
 import { supabase } from './supabaseClient'
 import { enviarTreinos, lerTreinos, lerTabelaInteira } from './syncTreinos'
 import { colunasFormato, formatoDaLinha } from './formatoPartidaSync'
+import { linhaAtletaNuvem } from './atletaSync'
 import {
   normalizarPosicao,
   type Escola, type Turma, type Atleta, type Adversario, type Campeonato, type Partida, type SetPartida, type Rally, type RallyEvento,
@@ -93,6 +94,13 @@ async function getOrCreateAdversarioTreino(ownerId: string): Promise<string> {
   return criado.id
 }
 
+// Antes os erros dos upserts eram ignorados em silêncio (foi assim que o bug
+// das atletas passou 3 semanas sem ninguém ver). Agora pelo menos aparecem no
+// console; o comportamento continua o mesmo (segue pras próximas tabelas).
+function avisarErroSync(tabela: string, error: { message: string } | null) {
+  if (error) console.error(`[sync] ${tabela} não foram pra nuvem:`, error.message)
+}
+
 // --- PUSH: manda o estado local atual pra nuvem (upsert por id, nunca apaga nada lá) ---
 //
 // CORREÇÃO (30/10/2026 — bug real: "fica no 'Salvando...' pra sempre, o que
@@ -122,27 +130,27 @@ export async function pushAll(estado: {
   await enviarTreinos(ownerId, estado)
 
   if (estado.escolas.length) {
-    await supabase.from('escolas').upsert(estado.escolas.map((e) => ({
+    avisarErroSync('escolas', (await supabase.from('escolas').upsert(estado.escolas.map((e) => ({
       id: e.id, owner_id: ownerId, nome: e.nome, logo_url: e.logoUrl ?? null, created_at: e.createdAt, deleted_at: e.deletedAt ?? null,
-    })))
+    })))).error)
   }
   if (estado.turmas.length) {
-    await supabase.from('turmas').upsert(estado.turmas.map((t) => ({
+    avisarErroSync('turmas', (await supabase.from('turmas').upsert(estado.turmas.map((t) => ({
       id: t.id, owner_id: ownerId, escola_id: t.escolaId, nome: t.nome,
       // Nível da turma (convocação, 11/11/2026) mora na coluna ano_serie.
       ano_serie: t.nivel != null ? String(t.nivel) : null,
       created_at: t.createdAt, deleted_at: t.deletedAt ?? null,
-    })))
+    })))).error)
   }
   if (estado.adversarios.length) {
-    await supabase.from('adversarios').upsert(estado.adversarios.map((a) => ({
+    avisarErroSync('adversarios', (await supabase.from('adversarios').upsert(estado.adversarios.map((a) => ({
       id: a.id, owner_id: ownerId, nome: a.nome, logo_url: a.logoUrl ?? null, created_at: a.createdAt,
-    })))
+    })))).error)
   }
   if (estado.campeonatos.length) {
-    await supabase.from('campeonatos').upsert(estado.campeonatos.map((c) => ({
+    avisarErroSync('campeonatos', (await supabase.from('campeonatos').upsert(estado.campeonatos.map((c) => ({
       id: c.id, owner_id: ownerId, nome: c.nome, created_at: c.createdAt,
-    })))
+    })))).error)
   }
 
   // Jogos do calendário — pequeno volume, mas vai ANTES de atletas/partidas
@@ -161,24 +169,21 @@ export async function pushAll(estado: {
         created_at: j.createdAt, deleted_at: j.deletedAt ?? null,
       })
     }
-    await supabase.from('eventos_calendario').upsert(linhas)
+    avisarErroSync('eventos_calendario', (await supabase.from('eventos_calendario').upsert(linhas)).error)
   }
 
   if (estado.avaliacoes.length) {
-    await supabase.from('avaliacoes').upsert(estado.avaliacoes.map((av) => ({
+    avisarErroSync('avaliacoes', (await supabase.from('avaliacoes').upsert(estado.avaliacoes.map((av) => ({
       id: av.id, owner_id: ownerId, atleta_id: av.atletaId, data: av.data,
       periodo: av.periodo, notas: av.notas, observacoes: av.observacoes ?? null,
-    })))
+    })))).error)
   }
 
   if (estado.atletas.length) {
-    await supabase.from('atletas').upsert(estado.atletas.map((a) => ({
-      id: a.id, owner_id: ownerId, nome: a.nome,
-      numero: a.numero && !Number.isNaN(Number(a.numero)) ? Number(a.numero) : null,
-      posicao: a.posicaoPrincipal ?? null, posicao_secundaria: a.posicaoSecundaria ?? null, foto_url: a.fotoUrl ?? null,
-      idade: a.idade ?? null, nascimento: a.nascimento ?? null, altura: a.alturaCm ?? null, codigo_acesso: a.codigoAcesso ?? null,
-      status: (a.status ?? 'ATIVA').toLowerCase(), created_at: a.createdAt, deleted_at: a.deletedAt ?? null,
-    })))
+    // Ver o comentário em atletaSync.ts: um único `null` em `posicao` fazia o
+    // banco recusar o lote inteiro, e o erro era ignorado (bug 30/10–21/11/2026).
+    const { error: erroAtletas } = await supabase.from('atletas').upsert(estado.atletas.map((a) => linhaAtletaNuvem(a, ownerId)))
+    avisarErroSync('atletas', erroAtletas)
 
     // Vínculo atleta→turma (atleta_equipe_historico): resolve equipe/categoria
     // de cada turma usada (cache, poucas turmas) e manda só os vínculos que
@@ -210,7 +215,7 @@ export async function pushAll(estado: {
             equipe_id: info.equipeId, categoria_id: info.categoriaId, temporada_id: temporadaId,
           }
         })
-      if (novosVinculos.length) await supabase.from('atleta_equipe_historico').insert(novosVinculos)
+      if (novosVinculos.length) avisarErroSync('atleta_equipe_historico', (await supabase.from('atleta_equipe_historico').insert(novosVinculos)).error)
     }
   }
 
@@ -228,7 +233,7 @@ export async function pushAll(estado: {
       const temporadaId = await getOrCreateTemporadaAtiva(ownerId)
       const adversarioId = p.adversarioId ?? (await getOrCreateAdversarioTreino(ownerId))
 
-      await supabase.from('partidas').upsert({
+      const { error: erroPartida } = await supabase.from('partidas').upsert({
         id: p.id, owner_id: ownerId, temporada_id: temporadaId, escola_id: turma.escolaId, turma_id: turma.id,
         equipe_id: equipeId, categoria_id: categoriaId, adversario_id: adversarioId,
         campeonato_id: p.campeonatoId ?? null, tipo: p.tipo, data: p.data, local: p.local ?? null,
@@ -241,6 +246,7 @@ export async function pushAll(estado: {
         ...colunasFormato(p),
         criada_em: p.createdAt, deleted_at: p.deletedAt ?? null,
       })
+      avisarErroSync('partidas', erroPartida)
 
       for (const set of p.setsPartida) {
         todosSets.push({
@@ -286,7 +292,8 @@ export async function pushAll(estado: {
     const EM_LOTES_DE = 500
     async function upsertEmLotes(tabela: string, linhas: Record<string, unknown>[]) {
       for (let i = 0; i < linhas.length; i += EM_LOTES_DE) {
-        await supabase.from(tabela).upsert(linhas.slice(i, i + EM_LOTES_DE))
+        const { error } = await supabase.from(tabela).upsert(linhas.slice(i, i + EM_LOTES_DE))
+        avisarErroSync(tabela, error)
       }
     }
     await upsertEmLotes('sets_partida', todosSets)
