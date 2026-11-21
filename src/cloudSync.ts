@@ -14,6 +14,7 @@ import { supabase } from './supabaseClient'
 import { enviarTreinos, lerTreinos, lerTabelaInteira } from './syncTreinos'
 import { colunasFormato, formatoDaLinha } from './formatoPartidaSync'
 import { linhaAtletaNuvem } from './atletaSync'
+import { resultadoDaNuvem, repararPartidas, repararRally } from './repararScout'
 import {
   normalizarPosicao,
   type Escola, type Turma, type Atleta, type Adversario, type Campeonato, type Partida, type SetPartida, type Rally, type RallyEvento,
@@ -283,7 +284,10 @@ export async function pushAll(estado: {
             apos_rally_numero: sub.aposRallyFechado, horario: sub.timestamp,
           })
         }
-        for (const rally of set.rallies) {
+        for (const rallyDoAparelho of set.rallies) {
+          // Nunca manda de volta pra nuvem um ponto antigo estragado (ver
+          // src/repararScout.ts) — mesmo de um aparelho que ainda não atualizou.
+          const rally = repararRally(rallyDoAparelho)
           todasRallies.push({
             id: rally.id, owner_id: ownerId, set_id: set.id, numero: rally.numero,
             ponto: rally.pontoCasa ? 'CASA' : 'ADVERSARIO',
@@ -424,10 +428,10 @@ export async function pullAll(): Promise<DadosNuvem | null> {
   function fundamentoLocal(f: string): FundamentoScout {
     return f.toLowerCase() as FundamentoScout
   }
-  function resultadoLocal(r: string): ResultadoEvento {
-    const up = (r ?? '').toUpperCase()
-    if (up === 'ACERTO' || up === 'BOM' || up === 'MEDIO' || up === 'ERRO' || up === 'EM_JOGO') return up as ResultadoEvento
-    return 'EM_JOGO'
+  // Entende os nomes do app antigo (ex.: "ACE") em vez de virar tudo
+  // "em jogo" — ver src/repararScout.ts (21/11/2026).
+  function resultadoLocal(fundamento: string, r: string): ResultadoEvento {
+    return resultadoDaNuvem(fundamento, r)
   }
 
   const partidas: Partida[] = (partidasR.data ?? [])
@@ -442,7 +446,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
                 .slice().sort((a, b) => a.ordem - b.ordem)
                 .map((ev, idx, arr) => ({
                   id: ev.id, atletaId: ev.atleta_id ?? undefined, fundamento: fundamentoLocal(ev.fundamento),
-                  resultado: resultadoLocal(ev.resultado),
+                  resultado: resultadoLocal(ev.fundamento, ev.resultado),
                   encerraRally: idx === arr.length - 1 ? (r.ponto === 'CASA' ? 'CASA' : 'ADVERSARIO') : null,
                   tipoErro: ev.detalhe ?? undefined, timestamp: r.horario,
                   ladoResponsavel: ev.lado_responsavel === 'ADVERSARIO' ? 'ADVERSARIO' as const : undefined,
@@ -511,5 +515,5 @@ export async function pullAll(): Promise<DadosNuvem | null> {
 
   const { sessoesTreino, bibliotecaExercicios, chamadas } = await lerTreinos(ownerId)
 
-  return { escolas, turmas, atletas, adversarios, campeonatos, partidas, jogosAgendados, avaliacoes, sessoesTreino, bibliotecaExercicios, chamadas }
+  return { escolas, turmas, atletas, adversarios, campeonatos, partidas: repararPartidas(partidas), jogosAgendados, avaliacoes, sessoesTreino, bibliotecaExercicios, chamadas }
 }
