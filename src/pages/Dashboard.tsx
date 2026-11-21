@@ -46,12 +46,13 @@ export default function Dashboard() {
       .slice(0, 3)
   }, [atletas, partidas])
 
+  const contar = (n: number, um: string, varios: string) => ({ valor: n as number | string, label: n === 1 ? um : varios })
   const kpis = [
-    { label: 'Escolas', valor: escolas.filter((e) => !e.deletedAt).length },
-    { label: 'Turmas', valor: turmasAtivas.length },
-    { label: 'Atletas', valor: atletas.filter((a) => !a.deletedAt).length },
-    { label: 'Jogos', valor: partidas.filter((p) => p.tipo === 'JOGO' && !p.deletedAt).length },
-    { label: 'Aproveitamento', valor: `${aproveitamento(partidas)}%` },
+    contar(escolas.filter((e) => !e.deletedAt).length, 'escola', 'escolas'),
+    contar(turmasAtivas.length, 'turma', 'turmas'),
+    contar(atletas.filter((a) => !a.deletedAt).length, 'atleta', 'atletas'),
+    contar(partidas.filter((p) => p.tipo === 'JOGO' && !p.deletedAt).length, 'jogo', 'jogos'),
+    { valor: `${aproveitamento(partidas)}%`, label: 'aproveitamento' },
   ]
 
   const hora = new Date().getHours()
@@ -63,8 +64,8 @@ export default function Dashboard() {
         <h1 className="text-2xl font-black tracking-tight">{saudacao}, professor</h1>
         <div className="flex flex-wrap gap-1.5 mt-2">
           {kpis.map((k) => (
-            <span key={k.label} className={`rd-chip ${k.label === 'Aproveitamento' ? 'rd-chip-gold' : ''}`}>
-              <strong className="font-black">{k.valor}</strong> {k.label.toLowerCase()}
+            <span key={k.label} className={`rd-chip ${k.label === 'aproveitamento' ? 'rd-chip-gold' : ''}`}>
+              <strong className="font-black">{k.valor}</strong> {k.label}
             </span>
           ))}
         </div>
