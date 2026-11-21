@@ -8,6 +8,7 @@ import type {
   FormatoPartida, SessaoTreino, QuadroTreino, ExercicioBiblioteca, ChamadaTreino,
 } from './types'
 import { marcarNaChamada, marcarTodasPresentes } from './chamada'
+import { repararPartidas } from './repararScout'
 import { QUADRO_SLOTS } from './types'
 import type { DadosNuvem } from './cloudSync'
 import type { BackupDados } from './backup'
@@ -435,7 +436,9 @@ export const useStore = create<RDState>()(
           atletas: mesclarPorId(s.atletas, dados.atletas),
           adversarios: mesclarPorId(s.adversarios, dados.adversarios),
           campeonatos: mesclarPorId(s.campeonatos, dados.campeonatos),
-          partidas: mesclarPorId(s.partidas, dados.partidas),
+          // repararPartidas: conserta também a cópia do APARELHO (que pode
+          // ganhar da nuvem no mesclarPorId) — ver src/repararScout.ts.
+          partidas: repararPartidas(mesclarPorId(s.partidas, dados.partidas)),
           jogosAgendados: mesclarPorId(s.jogosAgendados, dados.jogosAgendados),
           avaliacoes: mesclarPorId(s.avaliacoes, dados.avaliacoes),
           sessoesTreino: mesclarPorId(s.sessoesTreino, dados.sessoesTreino),
