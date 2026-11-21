@@ -20,6 +20,8 @@ import { useTelaAcesa } from '../telaAcesa'
 import PainelVoz, { type MarcacaoVoz } from '../components/PainelVoz'
 import PlayerVideo, { type ControlePlayer, type FonteVideo } from '../components/PlayerVideo'
 import { carimbarVideo, idYoutube, lancesComVideo } from '../videoJogo'
+import { detectarEfeitoPonto, type EfeitoPonto } from '../efeitoPonto'
+import EfeitoPontoDestaque from '../components/EfeitoPonto'
 
 // Cor e emoji por fundamento (pedido 30/10/2026: "mudar as cores... colocar
 // alguns emojis pra ficar mais divertido") — só identidade visual, não muda
@@ -220,6 +222,8 @@ export default function ModoJogo() {
   const [resultadoEdit, setResultadoEdit] = useState<ResultadoEvento>('ACERTO')
   const [atletaEdit, setAtletaEdit] = useState<string>('')
   const [numAdvEdit, setNumAdvEdit] = useState<string>('')
+  // Último ponto marcado, pro efeito no placar (ver src/efeitoPonto.ts).
+  const [efeitoPonto, setEfeitoPonto] = useState<(EfeitoPonto & { chave: number }) | null>(null)
 
   // Menu (pedido 30/10/2026: tela em tela cheia) — abre a gaveta de navegação
   // já que a sidebar/bottom nav fica escondida nesta tela.
@@ -344,6 +348,10 @@ export default function ModoJogo() {
   }
 
   function persistirESeFechou(novoSet: SetPartida) {
+    // Efeito de ponto (21/11/2026): todo lance marcado passa por aqui
+    // (botões, janela do adversário e voz), então é o lugar único de disparar.
+    const efeito = detectarEfeitoPonto(setAtual, novoSet)
+    if (efeito) setEfeitoPonto({ ...efeito, chave: Date.now() })
     const novosSets = [...sets.slice(0, -1), novoSet]
     const vencedor = setEstaFechado(novoSet, partida!)
     if (vencedor) {
@@ -802,14 +810,19 @@ export default function ModoJogo() {
         <div className="flex items-center justify-center gap-3 sm:gap-8">
           <div className="flex-1 min-w-0 text-right">
             <div className="text-[11px] sm:text-sm font-bold text-[var(--rd-text-dim)] truncate">{nomeNosso}</div>
-            <div className="text-4xl sm:text-5xl font-black">{setAtual.placarCasa}</div>
+            <div className="text-4xl sm:text-5xl font-black">
+              <span key={efeitoPonto?.lado === 'CASA' ? efeitoPonto.chave : 'casa'} className={efeitoPonto?.lado === 'CASA' ? 'rd-placar-pulo' : undefined}>{setAtual.placarCasa}</span>
+            </div>
           </div>
           <div className="text-xl sm:text-2xl text-[var(--rd-text-dim)] shrink-0">×</div>
           <div className="flex-1 min-w-0 text-left">
             <div className="text-[11px] sm:text-sm font-bold text-[var(--rd-text-dim)] truncate">{partida.adversarioNome ?? 'Adversário'}</div>
-            <div className="text-4xl sm:text-5xl font-black">{setAtual.placarAdversario}</div>
+            <div className="text-4xl sm:text-5xl font-black">
+              <span key={efeitoPonto?.lado === 'ADVERSARIO' ? efeitoPonto.chave : 'adv'} className={efeitoPonto?.lado === 'ADVERSARIO' ? 'rd-placar-pulo' : undefined}>{setAtual.placarAdversario}</span>
+            </div>
           </div>
         </div>
+        {efeitoPonto?.destaque && <EfeitoPontoDestaque tipo={efeitoPonto.destaque} chave={efeitoPonto.chave} />}
         <div className="text-xs text-[var(--rd-text-dim)] mt-1 flex items-center justify-center gap-2 flex-wrap">
           <span>Set {setAtual.numero} • {partida.setsGanhosCasa} × {partida.setsGanhosAdversario} sets</span>
           <IndicadorSync />
