@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, School, BarChart3, Calendar, Trophy, Settings, CalendarRange, ClipboardList, X, Menu, Volleyball } from 'lucide-react'
+import { Home, School, BarChart3, Calendar, Trophy, Settings, CalendarRange, ClipboardList, X, Menu, Volleyball, Sparkles } from 'lucide-react'
 
 const items = [
   { to: '/', label: 'Início', Icon: Home },
+  { to: '/assistente', label: 'Assistente', Icon: Sparkles },
   { to: '/escolas', label: 'Escolas', Icon: School },
   { to: '/treinos', label: 'Treinos', Icon: ClipboardList },
   { to: '/estatisticas', label: 'Estatísticas', Icon: BarChart3 },

@@ -21,6 +21,7 @@ const Configuracoes = lazy(() => import('./pages/Configuracoes'))
 const Lixeira = lazy(() => import('./pages/Lixeira'))
 const Treinos = lazy(() => import('./pages/Treinos'))
 const SessaoTreinoForm = lazy(() => import('./pages/SessaoTreinoForm'))
+const Assistente = lazy(() => import('./pages/Assistente'))
 const Login = lazy(() => import('./pages/auth/Login'))
 const Cadastro = lazy(() => import('./pages/auth/Cadastro'))
 const RecuperarSenha = lazy(() => import('./pages/auth/RecuperarSenha'))
@@ -74,6 +75,7 @@ function LayoutTreinador() {
           <Route path="/lixeira" element={<Lixeira />} />
           <Route path="/treinos" element={<Treinos />} />
           <Route path="/treinos/:id" element={<SessaoTreinoForm />} />
+          <Route path="/assistente" element={<Assistente />} />
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/cadastro" element={<Cadastro />} />
           <Route path="/auth/recuperar-senha" element={<RecuperarSenha />} />
