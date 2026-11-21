@@ -8,6 +8,7 @@ import {
   montarListaConvocacao, convocacaoInicial, principaisDeForaComReforco,
   calcularIdade, formatarDataBR, nivelDaTurma,
 } from '../convocacao'
+import { frequenciaPorAtleta } from '../chamada'
 
 /** Agendar um jogo da turma já com a convocação (pedido 11/11/2026).
  *  Usado na tela da turma pra criar um jogo novo e pra editar a convocação
@@ -15,8 +16,10 @@ import {
  *  reforços das turmas de baixo da mesma escola ficam numa seção fechada,
  *  desmarcados, com a turma de origem ao lado do nome. */
 export default function ConvocacaoForm({ turma, jogo, onPronto }: { turma: Turma; jogo?: JogoAgendado; onPronto: () => void }) {
-  const { turmas, atletas, adversarios, campeonatos, addAdversario, addCampeonato, addJogoAgendado, updateJogoAgendado } = useStore()
+  const { turmas, atletas, chamadas, adversarios, campeonatos, addAdversario, addCampeonato, addJogoAgendado, updateJogoAgendado } = useStore()
   const lista = useMemo(() => montarListaConvocacao(turma, turmas, atletas), [turma, turmas, atletas])
+  // Frequência nos treinos (21/11/2026), pra ajudar a decidir a convocação.
+  const frequencia = useMemo(() => frequenciaPorAtleta(chamadas ?? [], null), [chamadas])
 
   const [adversario, setAdversario] = useState(jogo?.adversarioNome ?? '')
   const [campeonato, setCampeonato] = useState(jogo?.campeonatoNome ?? '')
@@ -69,6 +72,7 @@ export default function ConvocacaoForm({ turma, jogo, onPronto }: { turma: Turma
           <span className="text-xs text-[var(--rd-text-dim)]">
             {nascimento ? `Nasc. ${formatarDataBR(nascimento)}` : 'Sem data de nascimento'}
             {idadeMostrada !== undefined ? ` · ${idadeMostrada} anos` : ''}
+            {frequencia[id]?.percentual != null ? ` · Treinos ${frequencia[id].percentual}%` : ''}
           </span>
         </span>
         {origem && (

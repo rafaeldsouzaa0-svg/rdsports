@@ -24,7 +24,7 @@ export default function Configuracoes() {
     const arquivo = montarArquivoBackup({
       escolas: s.escolas, turmas: s.turmas, equipes: s.equipes, categorias: s.categorias,
       atletas: s.atletas, adversarios: s.adversarios, campeonatos: s.campeonatos, partidas: s.partidas,
-      horariosTreino: s.horariosTreino, jogosAgendados: s.jogosAgendados, presencas: s.presencas,
+      horariosTreino: s.horariosTreino, jogosAgendados: s.jogosAgendados, presencas: s.presencas, chamadas: s.chamadas ?? [],
       avaliacoes: s.avaliacoes, sessoesTreino: s.sessoesTreino, bibliotecaExercicios: s.bibliotecaExercicios,
     })
     baixarBackup(arquivo)

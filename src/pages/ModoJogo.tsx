@@ -16,6 +16,7 @@ import type { FundamentoScout, ResultadoEvento, FormatoPartida, SetPartida, Part
 import type { LinhaErroAdversario, LinhaFundamento } from '../scoutEngine'
 import { Volleyball, Undo2, Square, Shield, Users, Check, ArrowLeftRight, AlertTriangle, History, Pencil, Menu, BarChart3 } from 'lucide-react'
 import { atletasDaPartida } from '../convocacao'
+import { useTelaAcesa } from '../telaAcesa'
 
 // Cor e emoji por fundamento (pedido 30/10/2026: "mudar as cores... colocar
 // alguns emojis pra ficar mais divertido") — só identidade visual, não muda
@@ -45,7 +46,7 @@ const ORDEM_VISUAL = [3, 2, 1, 4, 5, 0]
 const ROMANO: Record<number, string> = { 0: 'I', 1: 'II', 2: 'III', 3: 'IV', 4: 'V', 5: 'VI' }
 
 function FichaPosicao({
-  equipeNome, slots, nomes, servindo, onClickSlot, selecionado, elegivel,
+  equipeNome, slots, nomes, servindo, onClickSlot, selecionado, elegivel, liberoId,
 }: {
   equipeNome: string
   slots: (string | null)[]
@@ -57,6 +58,8 @@ function FichaPosicao({
    *  os demais aparecem esmaecidos (pedido 23/10/2026: filtrar por posição
    *  específica, ex.: só a levantadora em quadra pro fundamento Levantamento). */
   elegivel?: (idx: number) => boolean
+  /** Marca a líbero com uma etiqueta quando ela está em quadra (21/11/2026). */
+  liberoId?: string
 }) {
   return (
     <div className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: 'var(--rd-border)', background: 'var(--rd-surface)' }}>
@@ -91,6 +94,9 @@ function FichaPosicao({
               <span className={`text-[10px] font-bold ${ehSaque ? 'text-black/70' : 'text-[var(--rd-text-dim)]'}`}>{ROMANO[idx]}</span>
               <span className={`text-xs font-bold truncate max-w-full ${ehSaque ? 'text-black' : ''}`}>{nome ?? 'toque p/ escolher'}</span>
               {ehSaque && <span className="text-[9px] font-bold text-black/70">🏐 Saque</span>}
+              {liberoId && atletaId === liberoId && (
+                <span className="text-[9px] font-bold px-1.5 rounded" style={{ background: '#f1c40f', color: '#1a1300' }}>Líbero</span>
+              )}
             </button>
           )
         })}
@@ -163,6 +169,17 @@ export default function ModoJogo() {
   const [quemSacaW, setQuemSacaW] = useState<'CASA' | 'ADVERSARIO'>('CASA')
   const [escalacaoSlots, setEscalacaoSlots] = useState<(string | null)[]>([null, null, null, null, null, null])
   const [posicaoAtiva, setPosicaoAtiva] = useState<number | null>(0)
+  // Líbero (pedido 21/11/2026): escolhida fora das 6. Já vem marcada quando
+  // só uma das atletas do jogo está cadastrada como líbero, e continua a
+  // mesma de um set pro outro. `liberoSubstituiW` null = automático (troca
+  // com as centrais escaladas); vira uma lista quando o professor mexe.
+  const [liberoW, setLiberoW] = useState<string | null>(() => {
+    if (!partida) return null
+    const liberos = atletasDaPartida(partida, atletas, turmas)
+      .filter((x) => normalizarPosicao(x.atleta.posicaoPrincipal) === 'LIBERO')
+    return liberos.length === 1 ? liberos[0].atleta.id : null
+  })
+  const [liberoSubstituiW, setLiberoSubstituiW] = useState<string[] | null>(null)
 
   // Scout ao vivo (pedido 23/10/2026): a tela principal fica sempre com a
   // ficha de posição, os 6 fundamentos e o botão do time adversário visíveis
@@ -218,6 +235,9 @@ export default function ModoJogo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partida?.id, partida?.tipo, partida?.setsPartida.length])
 
+  // Tela não apaga enquanto o jogo está rolando (pedido 21/11/2026).
+  useTelaAcesa(!!partida && partida.status !== 'FINALIZADA')
+
   if (!partida) return <p>Partida não encontrada.</p>
 
   // Com convocação (jogo vindo do Calendário, 11/11/2026): só as convocadas,
@@ -239,9 +259,29 @@ export default function ModoJogo() {
 
   function clicarCelula(idx: number) {
     if (escalacaoSlots[idx]) {
+      const saindo = escalacaoSlots[idx]
       setEscalacaoSlots((prev) => prev.map((v, i) => (i === idx ? null : v)))
+      setLiberoSubstituiW((prev) => (prev ? prev.filter((x) => x !== saindo) : prev))
     }
     setPosicaoAtiva(idx)
+  }
+
+  // Quem a líbero troca no fundo: o que o professor marcou ou, no
+  // automático, as centrais que estão na escalação.
+  const escaladas = escalacaoSlots.filter((v): v is string => !!v)
+  const liberoSubstitui = liberoSubstituiW ?? escaladas.filter((idA) => {
+    const a = atletas.find((x) => x.id === idA)
+    return normalizarPosicao(a?.posicaoPrincipal) === 'CENTRAL'
+  })
+  const liberoPronta = !liberoW || liberoSubstitui.length > 0
+
+  function alternarLiberoSubstitui(atletaId: string) {
+    const atual = liberoSubstitui
+    setLiberoSubstituiW(atual.includes(atletaId) ? atual.filter((x) => x !== atletaId) : [...atual, atletaId])
+  }
+
+  function liberoDoNovoSet(): Pick<SetPartida, 'libero'> {
+    return liberoW && liberoSubstitui.length ? { libero: { atletaId: liberoW, substitui: liberoSubstitui } } : {}
   }
 
   function escolherParaEscalacao(atletaId: string) {
@@ -255,21 +295,23 @@ export default function ModoJogo() {
   }
 
   function iniciarSet1() {
-    if (escalacaoSlots.some((v) => !v)) return
-    const novoSet: SetPartida = { ...criarSet(1), escalacaoInicial: escalacaoSlots as string[], primeiroSaque: quemSacaW }
+    if (escalacaoSlots.some((v) => !v) || !liberoPronta) return
+    const novoSet: SetPartida = { ...criarSet(1), escalacaoInicial: escalacaoSlots as string[], primeiroSaque: quemSacaW, ...liberoDoNovoSet() }
     atualizarPartida(partidaId, {
       formato: formatoW, pontosSetNormal: pontosNormalW, pontosSetDecisivo: pontosDecisivoW,
       setsPartida: [novoSet],
     })
     setEscalacaoSlots([null, null, null, null, null, null])
+    setLiberoSubstituiW(null)
     setPosicaoAtiva(0)
   }
 
   function iniciarProximoSet() {
-    if (escalacaoSlots.some((v) => !v)) return
-    const novoSet: SetPartida = { ...criarSet(setAtual.numero + 1), escalacaoInicial: escalacaoSlots as string[], primeiroSaque: quemSacaW }
+    if (escalacaoSlots.some((v) => !v) || !liberoPronta) return
+    const novoSet: SetPartida = { ...criarSet(setAtual.numero + 1), escalacaoInicial: escalacaoSlots as string[], primeiroSaque: quemSacaW, ...liberoDoNovoSet() }
     atualizarPartida(partidaId, { setsPartida: [...sets, novoSet] })
     setEscalacaoSlots([null, null, null, null, null, null])
+    setLiberoSubstituiW(null)
     setPosicaoAtiva(0)
   }
 
@@ -456,7 +498,8 @@ export default function ModoJogo() {
     const piorAdversario = errosAdvSetAnterior ? fundamentoMaisErradoAdversario(errosAdvSetAnterior) : null
     const melhorAdversario = pontosAdvSetAnterior ? fundamentoMaisAcertadoAdversario(pontosAdvSetAnterior) : null
     const preenchidos = escalacaoSlots.filter(Boolean).length
-    const disponiveisParaEscalar = meusAtletas.filter((a) => !escalacaoSlots.includes(a.id))
+    const disponiveisParaEscalar = meusAtletas.filter((a) => !escalacaoSlots.includes(a.id) && a.id !== liberoW)
+    const opcoesLibero = meusAtletas.filter((a) => !escalacaoSlots.includes(a.id))
 
     return (
       <div>
@@ -551,7 +594,43 @@ export default function ModoJogo() {
           )}
         </Card>
 
-        <Button variant="gold" disabled={preenchidos !== 6} onClick={primeiraVez ? iniciarSet1 : iniciarProximoSet}>
+        <Card className="mb-4">
+          <div className="text-xs font-semibold mb-1 text-[var(--rd-text-dim)]">🟡 Líbero (opcional)</div>
+          <p className="text-xs text-[var(--rd-text-dim)] mb-2">
+            Ela fica fora das 6 e entra sozinha no fundo de quadra no lugar de quem você marcar — e sai quando essa atleta volta pra rede.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setLiberoW(null)} className={`rd-btn text-xs ${!liberoW ? 'rd-btn-gold' : ''}`}>Sem líbero</button>
+            {opcoesLibero.map((a) => (
+              <button key={a.id} onClick={() => setLiberoW(a.id)} className={`rd-btn text-xs ${liberoW === a.id ? 'rd-btn-gold' : ''}`}>
+                {a.nome}
+                {normalizarPosicao(a.posicaoPrincipal) === 'LIBERO' && <span className="ml-1 text-[10px] opacity-70">(líbero)</span>}
+              </button>
+            ))}
+          </div>
+          {liberoW && (
+            <div className="mt-3">
+              <div className="text-xs font-semibold mb-2">Ela troca no fundo com:</div>
+              {escaladas.length === 0 ? (
+                <p className="text-xs text-[var(--rd-text-dim)]">Monte a ficha de posição primeiro.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {escaladas.map((idA) => (
+                    <button key={idA} onClick={() => alternarLiberoSubstitui(idA)} className={`rd-btn text-xs ${liberoSubstitui.includes(idA) ? 'rd-btn-gold' : ''}`}>
+                      {liberoSubstitui.includes(idA) ? '✓ ' : ''}{mapaNomes[idA] ?? '—'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {escaladas.length > 0 && liberoSubstitui.length === 0 && (
+                <p className="text-xs text-[var(--rd-erro)] mt-2">Marque com quem a líbero troca (normalmente as 2 centrais).</p>
+              )}
+              <p className="text-xs text-[var(--rd-text-dim)] mt-2">Na posição I, quando o saque é nosso, quem saca é a própria atleta — a líbero entra quando perdermos o saque.</p>
+            </div>
+          )}
+        </Card>
+
+        <Button variant="gold" disabled={preenchidos !== 6 || !liberoPronta} onClick={primeiraVez ? iniciarSet1 : iniciarProximoSet}>
           <Check size={16} /> {primeiraVez ? 'Começar partida' : `Começar Set ${setAtual.numero + 1}`}
         </Button>
       </div>
@@ -560,7 +639,8 @@ export default function ModoJogo() {
 
   // ---------- Fase 2: scout ao vivo ----------
   const rotacao = ehJogo ? calcularRotacao(setAtual) : null
-  const reservas = rotacao ? meusAtletas.filter((a) => !rotacao.posicoes.includes(a.id)) : []
+  const liberoId = setAtual.libero?.atletaId
+  const reservas = rotacao ? meusAtletas.filter((a) => !rotacao.base.includes(a.id) && a.id !== liberoId) : []
   const nomeAtor = atorSel ? mapaNomes[atorSel] ?? '—' : null
 
   // Filtro por posição (pedido 23/10/2026): Levantamento só mostra quem está
@@ -619,6 +699,7 @@ export default function ModoJogo() {
             slots={rotacao.posicoes}
             nomes={mapaNomes}
             servindo={rotacao.servindo === 'CASA'}
+            liberoId={liberoId}
           />
         </div>
       )}
@@ -667,9 +748,10 @@ export default function ModoJogo() {
             <>
               <p className="text-xs text-[var(--rd-text-dim)] mb-2">Quem vai sair de quadra?</p>
               <div className="flex flex-wrap gap-2">
-                {rotacao.posicoes.map((atletaId, idx) => (
+                {rotacao.base.map((atletaId, idx) => (
                   <button key={idx} onClick={() => setPosicaoSaindo(idx)} className="rd-btn text-xs">
                     {ROMANO[idx]} — {mapaNomes[atletaId] ?? '—'}
+                    {rotacao.posicoes[idx] !== atletaId && <span className="ml-1 opacity-70">(líbero no lugar)</span>}
                   </button>
                 ))}
               </div>
@@ -677,7 +759,7 @@ export default function ModoJogo() {
           ) : (
             <>
               <p className="text-xs text-[var(--rd-text-dim)] mb-2">
-                Quem entra no lugar de <strong>{mapaNomes[rotacao.posicoes[posicaoSaindo]]}</strong> (posição {ROMANO[posicaoSaindo]})?
+                Quem entra no lugar de <strong>{mapaNomes[rotacao.base[posicaoSaindo]]}</strong> (posição {ROMANO[posicaoSaindo]})?
               </p>
               <div className="flex flex-wrap gap-2 mb-2">
                 {reservas.length === 0 ? (
@@ -802,6 +884,7 @@ export default function ModoJogo() {
                     servindo={rotacao.servindo === 'CASA'}
                     onClickSlot={(idx) => { const id = rotacao.posicoes[idx]; if (id) confirmarQuem(id) }}
                     elegivel={elegivelParaFundamento}
+                    liberoId={liberoId}
                   />
                 ) : null}
               </>

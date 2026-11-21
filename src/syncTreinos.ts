@@ -11,7 +11,7 @@
 // reenvio pareceria uma mudança e os aparelhos ficariam "atualizando" a cópia
 // um do outro sem parar.
 import { supabase } from './supabaseClient'
-import type { SessaoTreino, ExercicioBiblioteca } from './types'
+import type { SessaoTreino, ExercicioBiblioteca, ChamadaTreino } from './types'
 
 type ComDatas = { id: string; updatedAt?: string; deletedAt?: string }
 
@@ -94,20 +94,24 @@ export async function lerTabelaInteira(tabela: string, ownerId: string, colunas 
 
 export async function enviarTreinos(
   ownerId: string,
-  estado: { sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[] },
+  estado: { sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[]; chamadas?: ChamadaTreino[] },
 ): Promise<void> {
   if (estado.sessoesTreino.length) await enviar('sessoes_treino', estado.sessoesTreino.map((s) => paraLinha(s, ownerId)))
   if (estado.bibliotecaExercicios.length) await enviar('exercicios_biblioteca', estado.bibliotecaExercicios.map((e) => paraLinha(e, ownerId)))
+  // Chamada dos treinos (21/11/2026): mesmo esquema, tabela `chamadas_treino`.
+  if (estado.chamadas?.length) await enviar('chamadas_treino', estado.chamadas.map((c) => paraLinha(c, ownerId)))
 }
 
-export async function lerTreinos(ownerId: string): Promise<{ sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[] }> {
+export async function lerTreinos(ownerId: string): Promise<{ sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[]; chamadas: ChamadaTreino[] }> {
   const colunas = 'id, dados, updated_at, deleted_at'
-  const [sessoes, exercicios] = await Promise.all([
+  const [sessoes, exercicios, chamadas] = await Promise.all([
     lerTabelaInteira('sessoes_treino', ownerId, colunas),
     lerTabelaInteira('exercicios_biblioteca', ownerId, colunas),
+    lerTabelaInteira('chamadas_treino', ownerId, colunas),
   ])
   return {
     sessoesTreino: sessoes.map((l) => daLinha<SessaoTreino>(l)),
     bibliotecaExercicios: exercicios.map((l) => daLinha<ExercicioBiblioteca>(l)),
+    chamadas: chamadas.map((l) => daLinha<ChamadaTreino>(l)),
   }
 }

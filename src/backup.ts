@@ -8,7 +8,7 @@
 import type {
   Escola, Turma, Equipe, Categoria, Atleta, Adversario, Campeonato,
   Partida, HorarioTreino, JogoAgendado, RegistroPresenca, AvaliacaoPeriodica,
-  SessaoTreino, ExercicioBiblioteca,
+  SessaoTreino, ExercicioBiblioteca, ChamadaTreino,
 } from './types'
 
 export interface BackupDados {
@@ -23,6 +23,8 @@ export interface BackupDados {
   horariosTreino: HorarioTreino[]
   jogosAgendados: JogoAgendado[]
   presencas: RegistroPresenca[]
+  /** Chamada dos treinos (21/11/2026). Opcional: backups antigos não têm. */
+  chamadas?: ChamadaTreino[]
   avaliacoes: AvaliacaoPeriodica[]
   sessoesTreino: SessaoTreino[]
   bibliotecaExercicios?: ExercicioBiblioteca[]
@@ -38,7 +40,7 @@ export interface ArquivoBackup {
 const CHAVES_BACKUP: (keyof BackupDados)[] = [
   'escolas', 'turmas', 'equipes', 'categorias', 'atletas', 'adversarios',
   'campeonatos', 'partidas', 'horariosTreino', 'jogosAgendados', 'presencas',
-  'avaliacoes', 'sessoesTreino', 'bibliotecaExercicios',
+  'avaliacoes', 'sessoesTreino', 'bibliotecaExercicios', 'chamadas',
 ]
 
 export function montarArquivoBackup(dados: BackupDados): ArquivoBackup {

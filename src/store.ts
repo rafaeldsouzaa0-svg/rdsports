@@ -5,8 +5,9 @@ import { uid, nowISO, isoDia } from './utils'
 import type {
   Escola, Turma, Equipe, Categoria, Atleta, Adversario, Campeonato,
   Partida, HorarioTreino, JogoAgendado, RegistroPresenca, AvaliacaoPeriodica,
-  FormatoPartida, SessaoTreino, QuadroTreino, ExercicioBiblioteca,
+  FormatoPartida, SessaoTreino, QuadroTreino, ExercicioBiblioteca, ChamadaTreino,
 } from './types'
+import { marcarNaChamada, marcarTodasPresentes } from './chamada'
 import { QUADRO_SLOTS } from './types'
 import type { DadosNuvem } from './cloudSync'
 import type { BackupDados } from './backup'
@@ -68,6 +69,8 @@ interface RDState {
   horariosTreino: HorarioTreino[]
   jogosAgendados: JogoAgendado[]
   presencas: RegistroPresenca[]
+  /** Chamada dos treinos (21/11/2026) — ver chamada.ts. */
+  chamadas: ChamadaTreino[]
   avaliacoes: AvaliacaoPeriodica[]
   sessoesTreino: SessaoTreino[]
   bibliotecaExercicios: ExercicioBiblioteca[]
@@ -110,6 +113,8 @@ interface RDState {
   restoreJogoAgendado: (id: string) => void
 
   registrarPresenca: (turmaId: string, atletaId: string, data: string, presente: boolean) => void
+  marcarChamada: (turmaId: string, data: string, atletaId: string, valor: boolean | null) => void
+  marcarTodasNaChamada: (turmaId: string, data: string, atletaIds: string[]) => void
 
   addAvaliacao: (a: Omit<AvaliacaoPeriodica, 'id'>) => AvaliacaoPeriodica
 
@@ -151,6 +156,7 @@ export const useStore = create<RDState>()(
       horariosTreino: [],
       jogosAgendados: [],
       presencas: [],
+      chamadas: [],
       avaliacoes: [],
       sessoesTreino: [],
       bibliotecaExercicios: [],
@@ -312,6 +318,12 @@ export const useStore = create<RDState>()(
         setState((s) => ({ jogosAgendados: s.jogosAgendados.map((j) => (j.id === id ? { ...j, deletedAt: undefined } : j)) }))
       },
 
+      marcarChamada: (turmaId, data, atletaId, valor) => {
+        setState((s) => ({ chamadas: marcarNaChamada(s.chamadas ?? [], turmaId, data, atletaId, valor, nowISO()) }))
+      },
+      marcarTodasNaChamada: (turmaId, data, atletaIds) => {
+        setState((s) => ({ chamadas: marcarTodasPresentes(s.chamadas ?? [], turmaId, data, atletaIds, nowISO()) }))
+      },
       registrarPresenca: (turmaId, atletaId, data, presente) => {
         setState((s) => {
           const existente = s.presencas.find((p) => p.turmaId === turmaId && p.atletaId === atletaId && p.data === data)
@@ -428,6 +440,7 @@ export const useStore = create<RDState>()(
           avaliacoes: mesclarPorId(s.avaliacoes, dados.avaliacoes),
           sessoesTreino: mesclarPorId(s.sessoesTreino, dados.sessoesTreino),
           bibliotecaExercicios: mesclarPorId(s.bibliotecaExercicios, dados.bibliotecaExercicios),
+          chamadas: mesclarPorId(s.chamadas ?? [], dados.chamadas ?? []),
         }
         // `mesclarPorId` devolve a MESMA referência de array quando nada
         // mudou naquela lista — se nenhuma das listas mudou, nem chama setState,
@@ -454,6 +467,7 @@ export const useStore = create<RDState>()(
           horariosTreino: dados.horariosTreino,
           jogosAgendados: dados.jogosAgendados,
           presencas: dados.presencas,
+          chamadas: dados.chamadas ?? [],
           avaliacoes: dados.avaliacoes,
           sessoesTreino: dados.sessoesTreino,
           bibliotecaExercicios: dados.bibliotecaExercicios ?? [],

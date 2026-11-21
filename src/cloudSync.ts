@@ -15,7 +15,7 @@ import { enviarTreinos, lerTreinos, lerTabelaInteira } from './syncTreinos'
 import {
   normalizarPosicao,
   type Escola, type Turma, type Atleta, type Adversario, type Campeonato, type Partida, type SetPartida, type Rally, type RallyEvento,
-  type JogoAgendado, type AvaliacaoPeriodica, type SessaoTreino, type ExercicioBiblioteca, type FundamentoScout, type ResultadoEvento, type FormatoPartida,
+  type JogoAgendado, type AvaliacaoPeriodica, type SessaoTreino, type ExercicioBiblioteca, type ChamadaTreino, type FundamentoScout, type ResultadoEvento, type FormatoPartida,
 } from './types'
 
 export interface DadosNuvem {
@@ -30,6 +30,8 @@ export interface DadosNuvem {
   // Treinos e Biblioteca (sincronizam desde 11/11/2026 — ver syncTreinos.ts).
   sessoesTreino: SessaoTreino[]
   bibliotecaExercicios: ExercicioBiblioteca[]
+  // Chamada dos treinos (21/11/2026 — ver chamada.ts e syncTreinos.ts).
+  chamadas: ChamadaTreino[]
 }
 
 async function getOwnerId(): Promise<string | null> {
@@ -109,7 +111,7 @@ async function getOrCreateAdversarioTreino(ownerId: string): Promise<string> {
 export async function pushAll(estado: {
   escolas: Escola[]; turmas: Turma[]; atletas: Atleta[]; adversarios: Adversario[]
   campeonatos: Campeonato[]; partidas: Partida[]; jogosAgendados: JogoAgendado[]; avaliacoes: AvaliacaoPeriodica[]
-  sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[]
+  sessoesTreino: SessaoTreino[]; bibliotecaExercicios: ExercicioBiblioteca[]; chamadas?: ChamadaTreino[]
 }): Promise<void> {
   const ownerId = await getOwnerId()
   if (!ownerId) return
@@ -244,6 +246,9 @@ export async function pushAll(estado: {
           finalizado: set.finalizado, vencedor: set.vencedor ?? null,
           titulares_iniciais: set.escalacaoInicial ?? [],
           saque_inicial_casa: set.primeiroSaque === 'CASA',
+          // Líbero (21/11/2026): colunas `libero_id` e `libero_substitui`.
+          libero_id: set.libero?.atletaId ?? null,
+          libero_substitui: set.libero?.substitui ?? null,
         })
         for (const sub of set.substituicoes ?? []) {
           todasSubstituicoes.push({
@@ -423,6 +428,9 @@ export async function pullAll(): Promise<DadosNuvem | null> {
             ...(temEscalacao ? {
               escalacaoInicial: st.titulares_iniciais as string[],
               primeiroSaque: (st.saque_inicial_casa ? 'CASA' : 'ADVERSARIO') as 'CASA' | 'ADVERSARIO',
+              ...(st.libero_id && Array.isArray(st.libero_substitui) && st.libero_substitui.length
+                ? { libero: { atletaId: st.libero_id as string, substitui: st.libero_substitui as string[] } }
+                : {}),
               substituicoes: (substituicoesPorSet.get(st.id) ?? [])
                 .filter((sub) => sub.posicao_index != null)
                 .map((sub) => ({
@@ -467,7 +475,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
     notas: av.notas ?? {}, observacoes: av.observacoes ?? undefined, updatedAt: av.updated_at ?? undefined,
   }))
 
-  const { sessoesTreino, bibliotecaExercicios } = await lerTreinos(ownerId)
+  const { sessoesTreino, bibliotecaExercicios, chamadas } = await lerTreinos(ownerId)
 
-  return { escolas, turmas, atletas, adversarios, campeonatos, partidas, jogosAgendados, avaliacoes, sessoesTreino, bibliotecaExercicios }
+  return { escolas, turmas, atletas, adversarios, campeonatos, partidas, jogosAgendados, avaliacoes, sessoesTreino, bibliotecaExercicios, chamadas }
 }

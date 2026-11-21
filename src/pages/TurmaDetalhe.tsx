@@ -4,6 +4,8 @@ import { Users, Plus, Trash2, Dumbbell, CalendarPlus, CalendarDays, Pencil, Mess
 import { useStore } from '../store'
 import { PageTitle, Card, Button, EmptyState, Field, BotaoVoltar } from '../components/ui'
 import ConvocacaoForm from '../components/ConvocacaoForm'
+import ChamadaCard from '../components/ChamadaCard'
+import { frequenciaPorAtleta } from '../chamada'
 import { FORMATOS_PARTIDA } from '../types'
 import type { FormatoPartida } from '../types'
 import { calcularIdade, formatarDataBR, nivelDaTurma, textoConvocacaoWhatsApp, linkWhatsApp } from '../convocacao'
@@ -12,7 +14,7 @@ import { formatDate } from '../utils'
 export default function TurmaDetalhe() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { escolas, turmas, atletas, jogosAgendados, addAtleta, deleteAtleta, deleteJogoAgendado, criarPartida, updateTurma } = useStore()
+  const { escolas, turmas, atletas, jogosAgendados, chamadas, addAtleta, deleteAtleta, deleteJogoAgendado, criarPartida, updateTurma } = useStore()
   const [nome, setNome] = useState('')
   const [formato, setFormato] = useState<FormatoPartida>('MELHOR_DE_5')
   // null = formulário fechado; 'novo' = agendando; id = editando a convocação daquele jogo.
@@ -31,6 +33,7 @@ export default function TurmaDetalhe() {
     .sort((a, b) => a.data.localeCompare(b.data))
   const nivelAuto = nivelDaTurma({ nome: turma.nome })
   const escolaNome = escolas.find((e) => e.id === turma.escolaId)?.nome
+  const frequencia = frequenciaPorAtleta(chamadas ?? [], turmaId)
 
   // Enviar a convocação pro coordenador pelo WhatsApp (pedido 12/11/2026).
   function textoDoJogo(j: (typeof proximosJogos)[number]) {
@@ -123,6 +126,8 @@ export default function TurmaDetalhe() {
         </div>
       </Card>
 
+      <ChamadaCard turmaId={turmaId} atletas={meusAtletas} />
+
       <Card className="mb-5">
         <div className="grid sm:grid-cols-2 gap-x-3 items-end">
           <Field label="Nível da turma (pra puxar reforço das turmas de baixo)">
@@ -157,6 +162,7 @@ export default function TurmaDetalhe() {
         <div className="grid md:grid-cols-2 gap-3">
           {meusAtletas.map((a) => {
             const idade = calcularIdade(a.nascimento) ?? a.idade
+            const freq = frequencia[a.id]
             return (
               <Card key={a.id} className="flex items-center justify-between">
                 <Link to={`/atletas/${a.id}`} className="flex-1 hover:underline">
@@ -165,6 +171,11 @@ export default function TurmaDetalhe() {
                     {a.nascimento ? `Nasc. ${formatarDataBR(a.nascimento)}` : 'Sem data de nascimento'}
                     {idade !== undefined ? ` · ${idade} anos` : ''}
                   </span>
+                  {freq && freq.percentual !== null && (
+                    <span className="text-xs block" style={{ color: freq.percentual >= 75 ? 'var(--rd-positivo)' : freq.percentual >= 50 ? 'var(--rd-gold)' : 'var(--rd-erro)' }}>
+                      Frequência {freq.percentual}% ({freq.presencas} de {freq.total} treinos)
+                    </span>
+                  )}
                 </Link>
                 <Button variant="danger" onClick={() => { if (confirm(`Excluir a atleta "${a.nome}"? Dá pra restaurar depois pela Lixeira.`)) deleteAtleta(a.id) }}><Trash2 size={16} /></Button>
               </Card>

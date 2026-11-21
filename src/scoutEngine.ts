@@ -730,22 +730,54 @@ export function pontosPorFundamentoAdversario(sets: Pick<Partida, 'setsPartida'>
   return totais
 }
 
+/** Posições do fundo de quadra (I, VI e V), em que a líbero pode entrar. A
+ *  ordem é a de preferência se, por engano na papeleta, duas atletas da
+ *  líbero estiverem no fundo ao mesmo tempo: V e VI antes da I (que é a de
+ *  quem saca). */
+const FUNDO_LIBERO = [4, 5, 0]
+
+/** Quem está DE VERDADE em quadra, colocando a líbero no lugar da atleta que
+ *  ela substitui quando essa atleta está no fundo (pedido 21/11/2026).
+ *  `base` é o rodízio das 6 da escalação (com as substituições), sem a
+ *  líbero. Na posição I, quando o nosso time está sacando, a atleta saca e a
+ *  líbero fica de fora — ela entra assim que o time perde o saque. */
+export function quadraComLibero(
+  base: string[], servindo: 'CASA' | 'ADVERSARIO', liberoId: string | undefined, substitui: string[],
+): string[] {
+  if (!liberoId || substitui.length === 0) return base
+  for (const idx of FUNDO_LIBERO) {
+    if (idx === 0 && servindo === 'CASA') continue
+    if (substitui.includes(base[idx])) return base.map((p, i) => (i === idx ? liberoId : p))
+  }
+  return base
+}
+
+/** Quando uma atleta que a líbero substitui sai de quadra numa substituição,
+ *  quem entra no lugar dela passa a ser trocada pela líbero (ex.: central
+ *  reserva entrando no lugar da central titular). */
+function herdarLibero(substitui: string[], saiId: string | undefined, entraId: string): string[] {
+  if (!saiId || !substitui.includes(saiId)) return substitui
+  return substitui.map((id) => (id === saiId ? entraId : id))
+}
+
 /** Calcula o rodízio atual do NOSSO time: quem está em cada posição (1 a 6,
  *  índice 0 = posição 1) e quem está sacando agora — a partir da escalação
  *  inicial do set e do resultado de cada rally já fechado. Segue a regra
  *  oficial do vôlei: só giramos quando GANHAMOS o saque de volta (viramos
  *  sacadoras vindo de recepção) — não a cada ponto. Retorna `null` se o set
  *  ainda não tem escalação definida (aguardando a "papeleta"). */
-export function calcularRotacao(set: SetPartida): { posicoes: string[]; servindo: 'CASA' | 'ADVERSARIO' } | null {
+export function calcularRotacao(set: SetPartida): { posicoes: string[]; servindo: 'CASA' | 'ADVERSARIO'; base: string[] } | null {
   if (!set.escalacaoInicial || set.escalacaoInicial.length !== 6 || !set.primeiroSaque) return null
   let posicoes = [...set.escalacaoInicial]
   let servindo: 'CASA' | 'ADVERSARIO' = set.primeiroSaque
   let fechados = 0
   const subs = set.substituicoes ?? []
+  let substituiLibero = [...(set.libero?.substitui ?? [])]
 
   function aplicarSubsEm(marco: number) {
     for (const sub of subs) {
       if (sub.aposRallyFechado === marco) {
+        substituiLibero = herdarLibero(substituiLibero, posicoes[sub.posicaoIndex], sub.atletaEntraId)
         posicoes = posicoes.map((p, i) => (i === sub.posicaoIndex ? sub.atletaEntraId : p))
       }
     }
@@ -763,7 +795,10 @@ export function calcularRotacao(set: SetPartida): { posicoes: string[]; servindo
     fechados += 1
     aplicarSubsEm(fechados)
   }
-  return { posicoes, servindo }
+  // `posicoes` = quem está em quadra agora (com a líbero, se tiver);
+  // `base` = o rodízio das 6 da escalação, sem a líbero (é por ele que as
+  // substituições são feitas).
+  return { posicoes: quadraComLibero(posicoes, servindo, set.libero?.atletaId, substituiLibero), servindo, base: posicoes }
 }
 
 /** Troca uma atleta em quadra por uma reserva, no meio do set (pedido
@@ -794,10 +829,14 @@ export function analisePorPosicao(set: SetPartida): Record<number, LinhaPosicao>
   let fechados = 0
   const subs = set.substituicoes ?? []
   const porPosicao: Record<number, LinhaPosicao> = { 0: { pontos: 0, erros: 0 }, 1: { pontos: 0, erros: 0 }, 2: { pontos: 0, erros: 0 }, 3: { pontos: 0, erros: 0 }, 4: { pontos: 0, erros: 0 }, 5: { pontos: 0, erros: 0 } }
+  let substituiLibero = [...(set.libero?.substitui ?? [])]
 
   function aplicarSubsEm(marco: number) {
     for (const sub of subs) {
-      if (sub.aposRallyFechado === marco) posicoes = posicoes.map((p, i) => (i === sub.posicaoIndex ? sub.atletaEntraId : p))
+      if (sub.aposRallyFechado === marco) {
+        substituiLibero = herdarLibero(substituiLibero, posicoes[sub.posicaoIndex], sub.atletaEntraId)
+        posicoes = posicoes.map((p, i) => (i === sub.posicaoIndex ? sub.atletaEntraId : p))
+      }
     }
   }
 
@@ -806,7 +845,8 @@ export function analisePorPosicao(set: SetPartida): Record<number, LinhaPosicao>
     const eventoFechamento = rally.eventos.find((e) => e.encerraRally !== null)
     if (!eventoFechamento) continue
     if (eventoFechamento.atletaId && eventoFechamento.ladoResponsavel !== 'ADVERSARIO') {
-      const idx = posicoes.indexOf(eventoFechamento.atletaId)
+      const quadra = quadraComLibero(posicoes, servindo, set.libero?.atletaId, substituiLibero)
+      const idx = quadra.indexOf(eventoFechamento.atletaId)
       if (idx !== -1) {
         if (eventoFechamento.encerraRally === 'CASA') porPosicao[idx].pontos += 1
         else porPosicao[idx].erros += 1
@@ -867,10 +907,14 @@ export function analisePorAtletaEPosicao(sets: SetPartida[]): Record<string, Rec
     let servindo: 'CASA' | 'ADVERSARIO' = set.primeiroSaque
     let fechados = 0
     const subs = set.substituicoes ?? []
+    let substituiLibero = [...(set.libero?.substitui ?? [])]
 
     function aplicarSubsEm(marco: number) {
       for (const sub of subs) {
-        if (sub.aposRallyFechado === marco) posicoes = posicoes.map((p, i) => (i === sub.posicaoIndex ? sub.atletaEntraId : p))
+        if (sub.aposRallyFechado === marco) {
+          substituiLibero = herdarLibero(substituiLibero, posicoes[sub.posicaoIndex], sub.atletaEntraId)
+          posicoes = posicoes.map((p, i) => (i === sub.posicaoIndex ? sub.atletaEntraId : p))
+        }
       }
     }
 
@@ -878,9 +922,10 @@ export function analisePorAtletaEPosicao(sets: SetPartida[]): Record<string, Rec
     for (const rally of set.rallies) {
       // Posição de cada atleta QUANDO o rally começou — todas as ações dela
       // nesse rally (mesmo as que não decidem o ponto) contam aqui.
+      const quadra = quadraComLibero(posicoes, servindo, set.libero?.atletaId, substituiLibero)
       for (const ev of rally.eventos) {
         if (!ev.atletaId || ev.ladoResponsavel === 'ADVERSARIO') continue
-        const idx = posicoes.indexOf(ev.atletaId)
+        const idx = quadra.indexOf(ev.atletaId)
         if (idx === -1) continue
         const linha = linhaDe(ev.atletaId, idx)
         linha.total += 1

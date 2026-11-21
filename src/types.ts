@@ -249,6 +249,14 @@ export interface SetPartida {
   escalacaoInicial?: EscalacaoSet
   primeiroSaque?: 'CASA' | 'ADVERSARIO'
   substituicoes?: Substituicao[]
+  /** Líbero do set (pedido 21/11/2026), escolhida na papeleta FORA das 6 da
+   *  escalação. `substitui` = quem ela troca no fundo de quadra (normalmente
+   *  as 2 centrais). Ela entra sozinha quando uma dessas vai pro fundo
+   *  (posições I, V e VI) e sai quando a atleta volta pra rede — com uma
+   *  exceção: na posição I, quando é a vez do nosso saque, quem saca é a
+   *  própria atleta (a líbero não saca). Ver `quadraComLibero` em
+   *  scoutEngine.ts. Ausente = set sem líbero, igual a antes. */
+  libero?: { atletaId: string; substitui: string[] }
   /** Histórico de correções feitas em eventos deste set (ver `CorrecaoEvento`
    *  e `corrigirEvento` em scoutEngine.ts). Ausente/vazio = nenhuma correção
    *  feita ainda. */
@@ -324,6 +332,23 @@ export interface RegistroPresenca {
   atletaId: string
   data: string
   presente: boolean
+}
+
+/** Chamada de um dia de treino de uma turma (pedido 21/11/2026). Um registro
+ *  por turma + dia (o id é sempre o mesmo pra mesma turma e dia, ver
+ *  `idDaChamada` em chamada.ts — assim dois aparelhos fazendo a chamada do
+ *  mesmo treino mexem no MESMO registro, sem duplicar). `presencas` guarda
+ *  só quem já foi marcado: true = veio, false = faltou. Atleta que não
+ *  aparece ali ainda não foi marcada e não entra na frequência. Sincroniza
+ *  inteira (coluna `dados`) na tabela `chamadas_treino`. */
+export interface ChamadaTreino {
+  id: string
+  turmaId: string
+  data: string // AAAA-MM-DD
+  presencas: Record<string, boolean>
+  createdAt: string
+  updatedAt?: string
+  deletedAt?: string
 }
 
 export interface AvaliacaoPeriodica {
