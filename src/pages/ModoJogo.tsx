@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store'
 import { Card, PageTitle, Button, Field, IndicadorSync } from '../components/ui'
@@ -14,9 +14,12 @@ import { gerarHtmlRelatorioPartida, baixarHtml, slugify } from '../htmlReport'
 import { FORMATOS_PARTIDA, normalizarPosicao } from '../types'
 import type { FundamentoScout, ResultadoEvento, FormatoPartida, SetPartida, Partida, RallyEvento } from '../types'
 import type { LinhaErroAdversario, LinhaFundamento } from '../scoutEngine'
-import { Volleyball, Undo2, Square, Shield, Users, Check, ArrowLeftRight, AlertTriangle, History, Pencil, Menu, BarChart3 } from 'lucide-react'
+import { Volleyball, Undo2, Square, Shield, Users, Check, ArrowLeftRight, AlertTriangle, History, Pencil, Menu, BarChart3, Mic, Hand, Film, Link2, FolderOpen, X } from 'lucide-react'
 import { atletasDaPartida } from '../convocacao'
 import { useTelaAcesa } from '../telaAcesa'
+import PainelVoz, { type MarcacaoVoz } from '../components/PainelVoz'
+import PlayerVideo, { type ControlePlayer, type FonteVideo } from '../components/PlayerVideo'
+import { carimbarVideo, idYoutube, lancesComVideo } from '../videoJogo'
 
 // Cor e emoji por fundamento (pedido 30/10/2026: "mudar as cores... colocar
 // alguns emojis pra ficar mais divertido") — só identidade visual, não muda
@@ -227,6 +230,29 @@ export default function ModoJogo() {
   // final; agora dá pra abrir durante o set, sem interromper o jogo.
   const [painelNumerosAberto, setPainelNumerosAberto] = useState(false)
 
+  // Scout por voz (pedido 21/11/2026): o professor escolhe na hora se marca
+  // pelos botões ou falando. O app lembra a última escolha neste aparelho.
+  const [modoMarcacao, setModoMarcacao] = useState<'botoes' | 'voz'>(() => {
+    try { return localStorage.getItem('rdsports_modo_marcacao') === 'voz' ? 'voz' : 'botoes' } catch { return 'botoes' }
+  })
+  function escolherModoMarcacao(m: 'botoes' | 'voz') {
+    setModoMarcacao(m)
+    try { localStorage.setItem('rdsports_modo_marcacao', m) } catch { /* só não lembra */ }
+  }
+
+  // Scout pelo vídeo (pedido 21/11/2026): link do YouTube (guardado na
+  // partida) ou arquivo do aparelho (não sai do aparelho). Com o vídeo
+  // aberto, cada lance guarda o segundo do vídeo em que foi marcado.
+  const [videoAberto, setVideoAberto] = useState(false)
+  const [fonteArquivo, setFonteArquivo] = useState<FonteVideo | null>(null)
+  const [linkDigitado, setLinkDigitado] = useState('')
+  const [erroLink, setErroLink] = useState<string | null>(null)
+  const playerRef = useRef<ControlePlayer>(null)
+  // Segundo do vídeo no momento em que o professor começou a marcar o lance
+  // (tocou no fundamento, no Adversário ou no microfone) — o vídeo pausa ali.
+  const tempoDoLance = useRef<number | null>(null)
+  useEffect(() => () => { if (fonteArquivo?.tipo === 'arquivo') URL.revokeObjectURL(fonteArquivo.url) }, [fonteArquivo])
+
   // Treino não usa papeleta/escalação — cria o 1º set automaticamente ao abrir a tela.
   useEffect(() => {
     if (partida && partida.tipo === 'TREINO' && partida.setsPartida.length === 0) {
@@ -237,6 +263,8 @@ export default function ModoJogo() {
 
   // Tela não apaga enquanto o jogo está rolando (pedido 21/11/2026).
   useTelaAcesa(!!partida && partida.status !== 'FINALIZADA')
+  const idVideoYoutube = idYoutube(partida?.videoUrl)
+  const fonteYoutube = useMemo<FonteVideo | null>(() => (idVideoYoutube ? { tipo: 'youtube', id: idVideoYoutube } : null), [idVideoYoutube])
 
   if (!partida) return <p>Partida não encontrada.</p>
 
@@ -325,6 +353,38 @@ export default function ModoJogo() {
     }
   }
 
+  /** Guarda o minuto do vídeo (se estiver aberto) no lance recém-marcado e salva. */
+  function registrar(novoSet: SetPartida) {
+    persistirESeFechou(videoAberto ? carimbarVideo(novoSet, tempoDoLance.current) : novoSet)
+    tempoDoLance.current = null
+  }
+
+  /** Começo de uma marcação: pausa o vídeo e guarda em que segundo estava. */
+  function inicioDoLance() {
+    if (!videoAberto || !playerRef.current) { tempoDoLance.current = null; return }
+    tempoDoLance.current = playerRef.current.tempo()
+    playerRef.current.pausar()
+  }
+
+  function marcarPorVoz(m: MarcacaoVoz) {
+    if (tempoDoLance.current === null && videoAberto) inicioDoLance()
+    registrar(registrarEventoTime(setAtual, m.lado, m.fundamento, m.resultado, m.lado === 'CASA' ? m.atletaId : undefined, m.numeroAdversario))
+  }
+
+  function usarLinkVideo() {
+    const id = idYoutube(linkDigitado)
+    if (!id) { setErroLink('Esse link não parece ser do YouTube. Copie o link do vídeo (botão "Compartilhar") e cole aqui.'); return }
+    setErroLink(null)
+    setFonteArquivo(null)
+    atualizarPartida(partidaId, { videoUrl: linkDigitado.trim() })
+    setLinkDigitado('')
+  }
+
+  function usarArquivoVideo(arquivo: File | undefined) {
+    if (!arquivo) return
+    setFonteArquivo({ tipo: 'arquivo', url: URL.createObjectURL(arquivo), nome: arquivo.name })
+  }
+
   function fecharSet(novosSets: SetPartida[], setFechado: SetPartida, vencedor: 'CASA' | 'ADVERSARIO') {
     const setsFinal = novosSets.map((s) => (s.id === setFechado.id ? { ...s, finalizado: true, vencedor } : s))
     const setsGanhosCasa = setsFinal.filter((s) => s.vencedor === 'CASA').length
@@ -360,6 +420,7 @@ export default function ModoJogo() {
    *  resultado com a sacadora da posição I pré-selecionada — não faz sentido
    *  perguntar "quem sacou", já que só pode ser quem está na posição I. */
   function abrirModalFundamento(f: FundamentoScout) {
+    inicioDoLance()
     setFundamentoSel(f)
     const sacadoraId = ehJogo && rotacao ? rotacao.posicoes[0] : null
     if (f === 'saque' && rotacao?.servindo === 'CASA' && sacadoraId) {
@@ -380,7 +441,7 @@ export default function ModoJogo() {
   function registrarEspecifico(situacao: FundamentoScout, atletaId: string) {
     const resultado: ResultadoEvento = situacao === 'nao_deslocou' ? 'ERRO' : 'ACERTO'
     const novoSet = registrarEventoTime(setAtual, 'CASA', situacao, resultado, atletaId)
-    persistirESeFechou(novoSet)
+    registrar(novoSet)
     fecharModal()
   }
 
@@ -400,7 +461,7 @@ export default function ModoJogo() {
   function confirmarMarcar(resultado: ResultadoEvento) {
     if (!fundamentoSel || !atorSel) return
     const novoSet = registrarEventoTime(setAtual, 'CASA', fundamentoSel, resultado, atorSel)
-    persistirESeFechou(novoSet)
+    registrar(novoSet)
     fecharModal()
   }
 
@@ -409,6 +470,7 @@ export default function ModoJogo() {
    *  por "quem fez", já que normalmente não dá pra saber a posição exata do
    *  adversário em quadra. O nº da camisa continua opcional. */
   function abrirAdversario() {
+    inicioDoLance()
     setAdvAberto(true)
     setAdvEscolha(null)
     setNumeroAdvSel('')
@@ -422,7 +484,7 @@ export default function ModoJogo() {
 
   function marcarAdversario(fundamento: FundamentoScout, resultado: ResultadoEvento) {
     const novoSet = registrarEventoTime(setAtual, 'ADVERSARIO', fundamento, resultado, undefined, numeroAdvSel.trim() || undefined)
-    persistirESeFechou(novoSet)
+    registrar(novoSet)
     fecharAdversario()
   }
 
@@ -640,6 +702,18 @@ export default function ModoJogo() {
   // ---------- Fase 2: scout ao vivo ----------
   const rotacao = ehJogo ? calcularRotacao(setAtual) : null
   const liberoId = setAtual.libero?.atletaId
+  const fonteVideo: FonteVideo | null = fonteArquivo ?? fonteYoutube
+  const marcasVideo = videoAberto
+    ? lancesComVideo(partida).map((l) => ({
+      seg: l.videoSeg,
+      cor: (l.lado === 'CASA') === (l.resultado === 'ERRO') ? 'var(--rd-erro)' : l.resultado === 'ACERTO' || l.resultado === 'BOM' || (l.lado === 'ADVERSARIO' && l.resultado === 'ERRO') ? 'var(--rd-positivo)' : 'var(--rd-neutro)',
+    }))
+    : []
+  const paraVoz = (a: { id: string; nome: string; numero?: string }) => ({ id: a.id, nome: a.nome, numero: a.numero })
+  const todasVoz = meusAtletas.map(paraVoz)
+  const atletasEmQuadraVoz = rotacao
+    ? rotacao.posicoes.map((idA) => meusAtletas.find((a) => a.id === idA)).filter((a): a is NonNullable<typeof a> => !!a).map(paraVoz)
+    : todasVoz
   const reservas = rotacao ? meusAtletas.filter((a) => !rotacao.base.includes(a.id) && a.id !== liberoId) : []
   const nomeAtor = atorSel ? mapaNomes[atorSel] ?? '—' : null
 
@@ -673,6 +747,43 @@ export default function ModoJogo() {
           </button>
         }
       />
+
+      {videoAberto && (
+        <Card className="mb-4">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="font-bold text-sm flex items-center gap-2"><Film size={16} /> Vídeo do jogo</div>
+            <button className="text-xs text-[var(--rd-text-dim)] flex items-center gap-1" onClick={() => setVideoAberto(false)}><X size={14} /> Fechar vídeo</button>
+          </div>
+          {fonteVideo ? (
+            <>
+              <PlayerVideo ref={playerRef} fonte={fonteVideo} marcas={marcasVideo} />
+              <p className="text-xs text-[var(--rd-text-dim)] mt-2">
+                O vídeo pausa sozinho quando você começa a marcar um lance, e o lance fica guardado com o minuto do vídeo.
+                {fonteVideo.tipo === 'arquivo' ? ` Arquivo: ${fonteVideo.nome} (fica só neste aparelho).` : ''}
+              </p>
+              <button className="text-xs underline text-[var(--rd-text-dim)] mt-1" onClick={() => { setFonteArquivo(null); if (fonteVideo.tipo === 'youtube') atualizarPartida(partidaId, { videoUrl: undefined }) }}>
+                Trocar o vídeo
+              </button>
+            </>
+          ) : (
+            <div>
+              <div className="text-xs font-semibold mb-1.5 flex items-center gap-1.5"><Link2 size={14} /> Link do YouTube</div>
+              <div className="flex gap-2">
+                <input className="rd-input" placeholder="Cole o link do vídeo aqui" value={linkDigitado} onChange={(e) => setLinkDigitado(e.target.value)} />
+                <button className="rd-btn rd-btn-gold" onClick={usarLinkVideo}>Usar</button>
+              </div>
+              {erroLink && <p className="text-xs text-[var(--rd-erro)] mt-1">{erroLink}</p>}
+              <p className="text-xs text-[var(--rd-text-dim)] mt-1">O link fica guardado no jogo e abre em qualquer aparelho. Vídeo "não listado" funciona; "privado" não.</p>
+              <div className="text-xs text-[var(--rd-text-dim)] text-center my-3">— ou —</div>
+              <label className="rd-btn w-full cursor-pointer">
+                <FolderOpen size={16} /> Escolher vídeo do aparelho
+                <input type="file" accept="video/*" className="hidden" onChange={(e) => usarArquivoVideo(e.target.files?.[0])} />
+              </label>
+              <p className="text-xs text-[var(--rd-text-dim)] mt-1">O vídeo não vai pra internet: fica só neste aparelho. Pra assistir de novo depois, escolha o mesmo arquivo.</p>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="mb-4 sticky top-0 z-10 text-center">
         <div className="flex items-center justify-center gap-3 sm:gap-8">
@@ -736,6 +847,9 @@ export default function ModoJogo() {
             <ArrowLeftRight size={14} /> Substituição
           </button>
         )}
+        <button className={`rd-btn text-xs ${videoAberto ? 'rd-btn-gold' : ''}`} onClick={() => setVideoAberto((v) => !v)}>
+          <Film size={14} /> Vídeo
+        </button>
         <button className="rd-btn text-xs" onClick={encerrarSetManualmente}>
           <Square size={14} /> Encerrar set agora
         </button>
@@ -778,8 +892,34 @@ export default function ModoJogo() {
       )}
 
       <Card>
-        <div className="font-semibold text-sm mb-3">Qual fundamento?</div>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="font-semibold text-sm">{modoMarcacao === 'voz' ? 'Fale a jogada' : 'Qual fundamento?'}</div>
+          <div className="flex rounded-xl overflow-hidden border shrink-0" style={{ borderColor: 'var(--rd-border)' }} role="group" aria-label="Como marcar">
+            <button
+              className="px-3 py-1.5 text-xs font-bold flex items-center gap-1"
+              style={modoMarcacao === 'botoes' ? { background: 'var(--rd-gold)', color: '#1a1300' } : undefined}
+              aria-pressed={modoMarcacao === 'botoes'} onClick={() => escolherModoMarcacao('botoes')}
+            ><Hand size={14} /> Botões</button>
+            <button
+              className="px-3 py-1.5 text-xs font-bold flex items-center gap-1"
+              style={modoMarcacao === 'voz' ? { background: 'var(--rd-gold)', color: '#1a1300' } : undefined}
+              aria-pressed={modoMarcacao === 'voz'} onClick={() => escolherModoMarcacao('voz')}
+            ><Mic size={14} /> Por voz</button>
+          </div>
+        </div>
 
+        {modoMarcacao === 'voz' ? (
+          <PainelVoz
+            emQuadra={atletasEmQuadraVoz}
+            todas={todasVoz}
+            sacadoraId={rotacao?.servindo === 'CASA' ? rotacao.posicoes[0] : null}
+            onMarcar={marcarPorVoz}
+            onDesfazer={desfazer}
+            podeDesfazer={setAtual.rallies.length > 0}
+            aoComecar={inicioDoLance}
+            onUsarBotoes={() => escolherModoMarcacao('botoes')}
+          />
+        ) : (<>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {FUNDAMENTOS.map((f) => (
             <button
@@ -834,6 +974,7 @@ export default function ModoJogo() {
             </button>
           </div>
         </div>
+        </>)}
       </Card>
 
       <p className="text-xs text-[var(--rd-text-dim)] mt-4">

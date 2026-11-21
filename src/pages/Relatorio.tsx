@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useStore } from '../store'
 import { Card, EmptyState, BotaoVoltar } from '../components/ui'
 import { LogoExibicao } from '../components/LogoUpload'
+import LancesVideo from '../components/LancesVideo'
 import { encontrarLogoAdversario } from '../utils'
 import { Trophy, Users, Volleyball, Download, Printer, ShieldAlert, Target, MapPin, ArrowLeftRight, ListOrdered, BarChart3, Repeat, Flame, Crosshair, Swords, Sparkles, Copy, Check } from 'lucide-react'
 import {
@@ -653,6 +654,8 @@ export default function Relatorio() {
       <SecaoResumoAutomatico partida={partida} atletas={atletas} />
 
       <SecaoConfrontoDireto partida={partida} partidas={partidas} />
+
+      <LancesVideo partida={partida} atletas={atletas} />
 
       <div className="flex gap-2 flex-wrap mb-5 sticky top-0 py-2 z-10 bg-[var(--rd-bg)]/90 backdrop-blur">
         <button onClick={() => setAba('geral')} className={`rd-btn text-xs ${aba === 'geral' ? 'rd-btn-gold' : ''}`}>

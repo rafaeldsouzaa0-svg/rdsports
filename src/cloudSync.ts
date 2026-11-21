@@ -234,6 +234,8 @@ export async function pushAll(estado: {
         campeonato_id: p.campeonatoId ?? null, tipo: p.tipo, data: p.data, local: p.local ?? null,
         campeonato: p.campeonato ?? null, observacoes: p.observacoes ?? null,
         convocadas: p.convocadas ?? null,
+        // Link do vídeo do jogo (YouTube) — scout pelo vídeo, 21/11/2026.
+        video_url: p.videoUrl ?? null,
         status: p.status === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
         sets_ganhos_casa: p.setsGanhosCasa, sets_ganhos_adversario: p.setsGanhosAdversario,
         ...colunasFormato(p),
@@ -271,6 +273,7 @@ export async function pushAll(estado: {
               fundamento: ev.fundamento.toUpperCase(), atleta_id: ev.atletaId ?? null,
               resultado: ev.resultado, detalhe: ev.tipoErro ?? ev.tipoPontoAtaqueAdversario ?? null,
               lado_responsavel: ev.ladoResponsavel ?? null, numero_adversario: ev.numeroAdversario ?? null,
+              video_seg: ev.videoSeg ?? null,
             })
           }
         }
@@ -416,6 +419,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
                   tipoErro: ev.detalhe ?? undefined, timestamp: r.horario,
                   ladoResponsavel: ev.lado_responsavel === 'ADVERSARIO' ? 'ADVERSARIO' as const : undefined,
                   numeroAdversario: ev.numero_adversario ?? undefined,
+                  ...(ev.video_seg != null ? { videoSeg: Number(ev.video_seg) } : {}),
                 }))
               return {
                 id: r.id, numero: r.numero, eventos, pontoCasa: r.ponto === 'CASA',
@@ -452,6 +456,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
         status: p.status === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
         setsPartida: sets, setsGanhosCasa: p.sets_ganhos_casa, setsGanhosAdversario: p.sets_ganhos_adversario,
         observacoes: p.observacoes ?? undefined,
+        videoUrl: p.video_url ?? undefined,
         convocadas: Array.isArray(p.convocadas) && p.convocadas.length ? (p.convocadas as string[]) : undefined,
         createdAt: p.criada_em, updatedAt: p.updated_at ?? undefined, deletedAt: p.deleted_at ?? undefined,
       } satisfies Partida

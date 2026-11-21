@@ -190,6 +190,9 @@ export interface RallyEvento {
    *  pode opcionalmente dizer qual jogadora do outro time errou. */
   ladoResponsavel?: 'CASA' | 'ADVERSARIO'
   numeroAdversario?: string
+  /** Segundo do vídeo do jogo em que o lance foi marcado (scout pelo vídeo,
+   *  pedido 21/11/2026). Ausente = marcado sem vídeo. */
+  videoSeg?: number
 }
 
 export interface Rally {
