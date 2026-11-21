@@ -94,13 +94,6 @@ async function getOrCreateAdversarioTreino(ownerId: string): Promise<string> {
   return criado.id
 }
 
-// Antes os erros dos upserts eram ignorados em silêncio (foi assim que o bug
-// das atletas passou 3 semanas sem ninguém ver). Agora pelo menos aparecem no
-// console; o comportamento continua o mesmo (segue pras próximas tabelas).
-function avisarErroSync(tabela: string, error: { message: string } | null) {
-  if (error) console.error(`[sync] ${tabela} não foram pra nuvem:`, error.message)
-}
-
 // --- PUSH: manda o estado local atual pra nuvem (upsert por id, nunca apaga nada lá) ---
 //
 // CORREÇÃO (30/10/2026 — bug real: "fica no 'Salvando...' pra sempre, o que
@@ -125,9 +118,27 @@ export async function pushAll(estado: {
   const ownerId = await getOwnerId()
   if (!ownerId) return
 
+  // Erros de envio (revisão Supabase, 21/11/2026): antes os erros dos upserts
+  // eram ignorados em silêncio (foi assim que o bug das atletas passou 3
+  // semanas sem ninguém ver) e, depois, só iam pro console — o app seguia
+  // mostrando "sincronizado". Agora cada falha é anotada, as outras tabelas
+  // continuam sendo enviadas e, no FIM, o pushAll lança um erro só listando
+  // tudo que a nuvem recusou. O syncManager transforma isso no status "erro"
+  // do indicador de sincronização e tenta de novo no próximo ciclo.
+  const falhas: string[] = []
+  const avisarErroSync = (tabela: string, error: { message: string } | null) => {
+    if (!error) return
+    console.error(`[sync] ${tabela} não foram pra nuvem:`, error.message)
+    falhas.push(`${tabela}: ${error.message}`)
+  }
+
   // Treinos e Biblioteca vão primeiro: são pequenos e não dependem de nada
-  // do resto (11/11/2026).
-  await enviarTreinos(ownerId, estado)
+  // do resto (11/11/2026). Se falharem, o resto ainda é enviado.
+  try {
+    await enviarTreinos(ownerId, estado)
+  } catch (e) {
+    avisarErroSync('treinos', e as Error)
+  }
 
   if (estado.escolas.length) {
     avisarErroSync('escolas', (await supabase.from('escolas').upsert(estado.escolas.map((e) => ({
@@ -200,22 +211,28 @@ export async function pushAll(estado: {
       turmaInfo.set(a.turmaId!, { equipeId, categoriaId })
     }
     if (atletasComTurma.length) {
-      const { data: abertos } = await supabase
+      const { data: abertos, error: erroLeitura } = await supabase
         .from('atleta_equipe_historico').select('atleta_id, turma_id')
         .eq('owner_id', ownerId).is('data_saida', null)
         .in('atleta_id', atletasComTurma.map((a) => a.id))
-      const jaTemVinculo = new Set((abertos ?? []).map((h) => `${h.atleta_id}:${h.turma_id}`))
-      const novosVinculos = atletasComTurma
-        .filter((a) => !jaTemVinculo.has(`${a.id}:${a.turmaId}`))
-        .map((a) => {
-          const turma = estado.turmas.find((t) => t.id === a.turmaId)!
-          const info = turmaInfo.get(a.turmaId!)!
-          return {
-            owner_id: ownerId, atleta_id: a.id, escola_id: turma.escolaId, turma_id: turma.id,
-            equipe_id: info.equipeId, categoria_id: info.categoriaId, temporada_id: temporadaId,
-          }
-        })
-      if (novosVinculos.length) avisarErroSync('atleta_equipe_historico', (await supabase.from('atleta_equipe_historico').insert(novosVinculos)).error)
+      // Sem conseguir ler os vínculos atuais, inserir agora duplicaria todos:
+      // anota a falha e pula os vínculos neste ciclo.
+      if (erroLeitura) {
+        avisarErroSync('atleta_equipe_historico (leitura)', erroLeitura)
+      } else {
+        const jaTemVinculo = new Set((abertos ?? []).map((h) => `${h.atleta_id}:${h.turma_id}`))
+        const novosVinculos = atletasComTurma
+          .filter((a) => !jaTemVinculo.has(`${a.id}:${a.turmaId}`))
+          .map((a) => {
+            const turma = estado.turmas.find((t) => t.id === a.turmaId)!
+            const info = turmaInfo.get(a.turmaId!)!
+            return {
+              owner_id: ownerId, atleta_id: a.id, escola_id: turma.escolaId, turma_id: turma.id,
+              equipe_id: info.equipeId, categoria_id: info.categoriaId, temporada_id: temporadaId,
+            }
+          })
+        if (novosVinculos.length) avisarErroSync('atleta_equipe_historico', (await supabase.from('atleta_equipe_historico').insert(novosVinculos)).error)
+      }
     }
   }
 
@@ -300,6 +317,10 @@ export async function pushAll(estado: {
     await upsertEmLotes('substituicoes', todasSubstituicoes)
     await upsertEmLotes('rallies', todasRallies)
     await upsertEmLotes('rally_eventos', todosEventos)
+  }
+
+  if (falhas.length) {
+    throw new Error(`[sync] ${falhas.length} envio(s) recusado(s) pela nuvem — ${falhas.join(' | ')}`)
   }
 }
 
