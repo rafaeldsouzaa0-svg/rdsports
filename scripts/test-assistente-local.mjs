@@ -61,12 +61,14 @@ assert(analise.pior?.fundamento === 'recepcao', 'pior fundamento = recepção')
 assert(analise.melhor?.fundamento === 'saque', 'melhor fundamento = saque')
 assert(analise.jogosAnalisados === 1, 'só conta partida finalizada e que não é de teste')
 
-const jogo = prepararProximoJogo(dados, hoje)
+const jogos = prepararProximoJogo(dados, hoje)
+assert(jogos.length === 1, 'um jogo na semana → um cartão')
+const jogo = jogos[0]
 assert(jogo.titulo.includes('Aubrick Sub-15') && jogo.titulo.includes('Vértice'), 'próximo jogo = Aubrick Sub-15 × Vértice')
 assert(tem(jogo, '1 jogo, 0 vitórias e 1 derrota'), 'histórico contra o adversário')
 assert(tem(jogo, 'Precisa cuidar: **Recepção**'), 'aponta recepção pra cuidar')
 assert(tem(jogo, 'Ainda sem convocadas'), 'avisa que faltam convocadas')
-assert(prepararProximoJogo({ ...dados, jogosAgendados: [] }, hoje).linhas[0].includes('Não há jogo'), 'sem jogo agendado → avisa')
+assert(prepararProximoJogo({ ...dados, jogosAgendados: [] }, hoje)[0].linhas[0].includes('Não há jogo'), 'sem jogo agendado → avisa')
 
 const treinos = montarTreino(dados, hoje)
 assert(treinos.length === 1, 'um jogo na semana → um cartão de treino')
@@ -90,5 +92,19 @@ assert(entenderPergunta('como tá minha semana') === 'semana', 'entende "semana"
 assert(entenderPergunta('prepara o jogo de terça') === 'jogo', 'entende "jogo"')
 assert(entenderPergunta('monta um treino pra segunda') === 'treino', 'entende "treino"')
 assert(entenderPergunta('qual a capital da França') === null, 'pergunta livre → não entende (sugere o Claude)')
+
+// Pedido 21/11/2026 (foto do Rafael): dois jogos no mesmo dia → um cartão pra cada.
+const mesmoDia = { ...dados, turmas: [...dados.turmas, { id: 't3', escolaId: 'e1', nome: '8º ano' }],
+  jogosAgendados: [
+    { id: 'a', turmaId: 't1', adversarioNome: 'Lourenço Castanho', data: '2026-11-25', horario: '17:00:00', createdAt: '' },
+    { id: 'b', turmaId: 't3', adversarioNome: 'Pueri Domus', data: '2026-11-25', horario: '18:00:00', createdAt: '' },
+  ] }
+const prep = prepararProximoJogo(mesmoDia, hoje)
+assert(prep.length === 2, 'dois jogos no mesmo dia → dois cartões em Preparar próximo jogo')
+assert(prep[0].titulo.includes('Lourenço') && prep[1].titulo.includes('Pueri'), 'em ordem de horário')
+assert(prep[0].linhas[0].includes('17:00') && !prep[0].linhas[0].includes('17:00:00'), 'horário sem segundos')
+assert(!minhaSemana(mesmoDia, hoje).linhas.some((l) => l.includes(':00:00')), 'semana mostra horário sem segundos')
+const longe = { ...dados, jogosAgendados: [{ id: 'z', turmaId: 't1', adversarioNome: 'Longe', data: '2026-12-10', createdAt: '' }] }
+assert(prepararProximoJogo(longe, hoje).length === 1 && prepararProximoJogo(longe, hoje)[0].titulo.includes('Longe'), 'sem jogo na semana → o próximo jogo')
 
 if (falhas) { console.error(`${falhas} falha(s)`); process.exit(1) }

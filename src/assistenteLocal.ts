@@ -47,6 +47,11 @@ export function plural(n: number, singular: string, pluralTexto = `${singular}s`
   return `${n} ${n === 1 ? singular : pluralTexto}`
 }
 
+/** "17:00:00" (vindo da nuvem) → "17:00". */
+export function horaCurta(h: string | undefined): string {
+  return h ? h.slice(0, 5) : ''
+}
+
 function diaCurto(data: string): string {
   const d = parseDataLocal(data)
   return `${DIAS[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -94,7 +99,7 @@ export function minhaSemana(dados: DadosAssistente, hoje: string): RespostaAssis
     const semConvocadas = !j.convocadas || j.convocadas.length === 0
     itens.push({
       data: j.data, hora: j.horario ?? '',
-      texto: `**${diaCurto(j.data)}** — Jogo ${nomeTurma(dados, j.turmaId)} × ${j.adversarioNome}${j.horario ? `, ${j.horario}` : ''}${j.local ? ` (${j.local})` : ''}${semConvocadas ? '\n   ⚠️ ainda sem convocadas' : ''}`,
+      texto: `**${diaCurto(j.data)}** — Jogo ${nomeTurma(dados, j.turmaId)} × ${j.adversarioNome}${j.horario ? `, ${horaCurta(j.horario)}` : ''}${j.local ? ` (${j.local})` : ''}${semConvocadas ? '\n   ⚠️ ainda sem convocadas' : ''}`,
     })
   }
   // Treinos fixos da grade (horários) — um por dia/turma.
@@ -106,7 +111,7 @@ export function minhaSemana(dados: DadosAssistente, hoje: string): RespostaAssis
       const sessao = dados.sessoesTreino.find((s) => !s.deletedAt && s.turmaId === h.turmaId && s.data === dia)
       itens.push({
         data: dia, hora: h.horario,
-        texto: `**${diaCurto(dia)}** — Treino ${nomeTurma(dados, h.turmaId)}, ${h.horario}${sessao ? ' (treino já montado ✓)' : ''}`,
+        texto: `**${diaCurto(dia)}** — Treino ${nomeTurma(dados, h.turmaId)}, ${horaCurta(h.horario)}${sessao ? ' (treino já montado ✓)' : ''}`,
       })
     }
   }
@@ -184,12 +189,20 @@ export function proximoJogoValido(dados: DadosAssistente, hoje: string): JogoAge
 }
 
 // --- Preparar próximo jogo ---
-export function prepararProximoJogo(dados: DadosAssistente, hoje: string): RespostaAssistente {
-  const jogo = proximoJogoValido(dados, hoje)
-  if (!jogo) return { titulo: 'Preparar próximo jogo', linhas: ['Não há jogo agendado. Agende um jogo pela tela da turma.'], acoes: [{ rotulo: 'Abrir Escolas', para: '/escolas' }] }
+// Pedido 21/11/2026: com vários jogos na semana (até no mesmo dia), um cartão
+// pra CADA jogo dos próximos 7 dias; sem jogo na semana, o próximo jogo.
+export function prepararProximoJogo(dados: DadosAssistente, hoje: string): RespostaAssistente[] {
+  const fimSemana = somaDias(hoje, 6)
+  const daSemana = jogosValidos(dados).filter((j) => j.data >= hoje && j.data <= fimSemana).sort(ordenarJogos)
+  const jogos = daSemana.length ? daSemana : [proximoJogoValido(dados, hoje)].filter((j): j is JogoAgendado => !!j)
+  if (!jogos.length) return [{ titulo: 'Preparar próximo jogo', linhas: ['Não há jogo agendado. Agende um jogo pela tela da turma.'], acoes: [{ rotulo: 'Abrir Escolas', para: '/escolas' }] }]
+  return jogos.map((j) => prepararJogo(dados, j))
+}
+
+function prepararJogo(dados: DadosAssistente, jogo: JogoAgendado): RespostaAssistente {
 
   const linhas: string[] = []
-  linhas.push(`${diaCurto(jogo.data)}${jogo.horario ? `, ${jogo.horario}` : ''}${jogo.local ? ` — ${jogo.local}` : ''}`)
+  linhas.push(`${diaCurto(jogo.data)}${jogo.horario ? `, ${horaCurta(jogo.horario)}` : ''}${jogo.local ? ` — ${jogo.local}` : ''}`)
 
   const confronto = confrontoDireto(partidasValidas(dados), jogo.turmaId, jogo.adversarioNome)
   if (confronto.jogos.length === 0) {
@@ -288,7 +301,7 @@ export function entenderPergunta(texto: string): TipoPergunta | null {
 export function responder(tipo: TipoPergunta, dados: DadosAssistente, hoje: string): RespostaAssistente[] {
   if (tipo === 'semana') return [minhaSemana(dados, hoje)]
   if (tipo === 'pendencias') return [pendencias(dados, hoje)]
-  if (tipo === 'jogo') return [prepararProximoJogo(dados, hoje)]
+  if (tipo === 'jogo') return prepararProximoJogo(dados, hoje)
   return montarTreino(dados, hoje)
 }
 
