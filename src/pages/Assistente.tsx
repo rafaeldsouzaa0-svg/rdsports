@@ -13,7 +13,7 @@ import { useReconhecimentoVoz } from '../useReconhecimentoVoz'
 import { responder, entenderPergunta, type RespostaAssistente, type TipoPergunta } from '../assistenteLocal'
 import { isoDia } from '../utils'
 
-type Mensagem = { de: 'treinador'; texto: string } | { de: 'assistente'; resposta: RespostaAssistente }
+type Mensagem = { de: 'treinador'; texto: string } | { de: 'assistente'; respostas: RespostaAssistente[] }
 
 const ATALHOS: { tipo: TipoPergunta; rotulo: string; Icon: typeof CalendarDays }[] = [
   { tipo: 'semana', rotulo: 'Minha semana', Icon: CalendarDays },
@@ -68,8 +68,8 @@ export default function Assistente() {
 
   function perguntar(pergunta: string, tipo: TipoPergunta | null) {
     const hoje = isoDia(new Date())
-    const resposta = tipo ? responder(tipo, dados, hoje) : NAO_ENTENDI
-    setMensagens((m) => [...m, { de: 'treinador', texto: pergunta }, { de: 'assistente', resposta }])
+    const respostas = tipo ? responder(tipo, dados, hoje) : [NAO_ENTENDI]
+    setMensagens((m) => [...m, { de: 'treinador', texto: pergunta }, { de: 'assistente', respostas }])
     setTexto('')
   }
 
@@ -108,22 +108,25 @@ export default function Assistente() {
             <div className="max-w-[88%] rounded-2xl rounded-br-md px-3.5 py-2.5 text-[15px] leading-snug bg-[var(--rd-gold)] text-[#1a1300]">{m.texto}</div>
           </div>
         ) : (
-          <div key={i} className="flex justify-start">
-            <div className="max-w-[92%] rd-card rounded-2xl rounded-bl-md px-3.5 py-2.5 text-[15px] leading-snug">
-              <p className="font-bold mb-1.5">{m.resposta.titulo}</p>
-              <div className="flex flex-col gap-1.5">
-                {m.resposta.linhas.map((l, j) => <p key={j}><TextoFormatado texto={l} /></p>)}
-              </div>
-              {m.resposta.acoes && m.resposta.acoes.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {m.resposta.acoes.map((a) => (
-                    <Link key={a.para + a.rotulo} to={a.para} className="rd-btn text-sm !py-1.5">
-                      {a.rotulo} <ChevronRight size={16} />
-                    </Link>
-                  ))}
+          <div key={i} className="flex flex-col items-start gap-2">
+            {/* "Montar treino" com 2+ jogos na semana: um cartão por jogo. */}
+            {m.respostas.map((r, k) => (
+              <div key={k} className="max-w-[92%] rd-card rounded-2xl rounded-bl-md px-3.5 py-2.5 text-[15px] leading-snug">
+                <p className="font-bold mb-1.5">{r.titulo}</p>
+                <div className="flex flex-col gap-1.5">
+                  {r.linhas.map((l, j) => <p key={j}><TextoFormatado texto={l} /></p>)}
                 </div>
-              )}
-            </div>
+                {r.acoes && r.acoes.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {r.acoes.map((a) => (
+                      <Link key={a.para + a.rotulo} to={a.para} className="rd-btn text-sm !py-1.5">
+                        {a.rotulo} <ChevronRight size={16} />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         ))}
 

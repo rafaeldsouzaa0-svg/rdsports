@@ -223,13 +223,22 @@ export function prepararProximoJogo(dados: DadosAssistente, hoje: string): Respo
 }
 
 // --- Montar treino ---
-export function montarTreino(dados: DadosAssistente, hoje: string): RespostaAssistente {
-  // Turma do próximo jogo; sem jogo, a turma do último jogo com scout.
+// Pedido 21/11/2026: com dois (ou mais) jogos na semana, aparece uma sugestão
+// de treino pra CADA jogo, não só pro primeiro.
+export function montarTreino(dados: DadosAssistente, hoje: string): RespostaAssistente[] {
+  const fimSemana = somaDias(hoje, 6)
+  const jogosDaSemana = jogosValidos(dados).filter((j) => j.data >= hoje && j.data <= fimSemana).sort(ordenarJogos)
+  if (jogosDaSemana.length) return jogosDaSemana.map((j) => treinoDaTurma(dados, j.turmaId, j))
+
+  // Sem jogo na semana: o próximo jogo; sem jogo agendado, a turma do último jogo com scout.
   const jogo = proximoJogoValido(dados, hoje)
   const ultimaPartida = partidasValidas(dados).filter((p) => p.status === 'FINALIZADA').sort((a, b) => b.data.localeCompare(a.data))[0]
   const turmaId = jogo?.turmaId ?? ultimaPartida?.turmaId
-  if (!turmaId) return { titulo: 'Montar treino', linhas: ['Ainda não há jogos com scout pra saber o que treinar. Faça o scout de um jogo e volte aqui.'], acoes: [{ rotulo: 'Abrir Treinos', para: '/treinos' }] }
+  if (!turmaId) return [{ titulo: 'Montar treino', linhas: ['Ainda não há jogos com scout pra saber o que treinar. Faça o scout de um jogo e volte aqui.'], acoes: [{ rotulo: 'Abrir Treinos', para: '/treinos' }, { rotulo: 'Só registrar o que teve', para: '/treinos/registrar' }] }]
+  return [treinoDaTurma(dados, turmaId, jogo)]
+}
 
+function treinoDaTurma(dados: DadosAssistente, turmaId: string, jogo: JogoAgendado | undefined): RespostaAssistente {
   const linhas: string[] = []
   linhas.push(jogo ? `Para o jogo de ${diaCurto(jogo.data)} contra ${jogo.adversarioNome}.` : 'Com base no último jogo com scout.')
 
@@ -246,7 +255,7 @@ export function montarTreino(dados: DadosAssistente, hoje: string): RespostaAssi
   if (!temaFoco && variar?.temaSugeridoId) temaFoco = variar.temaSugeridoId
 
   if (temaFoco) {
-    const exercicios = dados.bibliotecaExercicios.filter((e) => e.temas.includes(temaFoco!)).slice(0, 4)
+    const exercicios = dados.bibliotecaExercicios.filter((e) => !e.deletedAt && e.temas.includes(temaFoco!)).slice(0, 4)
     if (exercicios.length) {
       linhas.push(`**Exercícios da sua biblioteca (${temaLabel(temaFoco)}):**`)
       for (const e of exercicios) linhas.push(`- ${e.nome}${e.tempoMin ? ` (${e.tempoMin} min)` : ''}${e.objetivo ? ` — ${e.objetivo}` : ''}`)
@@ -257,7 +266,11 @@ export function montarTreino(dados: DadosAssistente, hoje: string): RespostaAssi
     linhas.push('Não há scout suficiente pra sugerir um foco. Que tal um treino de jogo completo?')
   }
 
-  return { titulo: `Treino — ${nomeTurma(dados, turmaId)}`, linhas, acoes: [{ rotulo: 'Abrir Treinos', para: '/treinos' }] }
+  return {
+    titulo: `Treino — ${nomeTurma(dados, turmaId)}`,
+    linhas,
+    acoes: [{ rotulo: 'Abrir Treinos', para: '/treinos' }, { rotulo: 'Só registrar o que teve', para: `/treinos/registrar?turma=${turmaId}` }],
+  }
 }
 
 /** Pergunta escrita/falada → qual botão ela pede. `null` = pergunta livre
@@ -271,10 +284,11 @@ export function entenderPergunta(texto: string): TipoPergunta | null {
   return null
 }
 
-export function responder(tipo: TipoPergunta, dados: DadosAssistente, hoje: string): RespostaAssistente {
-  if (tipo === 'semana') return minhaSemana(dados, hoje)
-  if (tipo === 'pendencias') return pendencias(dados, hoje)
-  if (tipo === 'jogo') return prepararProximoJogo(dados, hoje)
+/** Sempre uma lista: "Montar treino" pode trazer um cartão por jogo da semana. */
+export function responder(tipo: TipoPergunta, dados: DadosAssistente, hoje: string): RespostaAssistente[] {
+  if (tipo === 'semana') return [minhaSemana(dados, hoje)]
+  if (tipo === 'pendencias') return [pendencias(dados, hoje)]
+  if (tipo === 'jogo') return [prepararProximoJogo(dados, hoje)]
   return montarTreino(dados, hoje)
 }
 

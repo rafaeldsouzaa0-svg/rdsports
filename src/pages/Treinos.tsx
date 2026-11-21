@@ -4,7 +4,7 @@
 // ver `BibliotecaExercicios.tsx`), igual o H10 tem sub-separadores aqui.
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Plus, Printer, Trash2, BookOpen } from 'lucide-react'
+import { ClipboardList, Plus, Printer, Trash2, BookOpen, CheckSquare } from 'lucide-react'
 import { useStore } from '../store'
 import { PageTitle, Card, Button, EmptyState } from '../components/ui'
 import { formatDate } from '../utils'
@@ -61,7 +61,13 @@ export default function Treinos() {
         icon={<ClipboardList size={24} />}
         title="Treinos"
         subtitle={aba === 'sessoes' ? 'Monte a ficha do treino: ela sai pronta pra imprimir ou salvar em PDF.' : 'Exercícios prontos pra reusar em qualquer sessão.'}
-        action={aba === 'sessoes' ? <Button variant="gold" onClick={nova}><Plus size={16} /> Nova sessão</Button> : undefined}
+        action={aba === 'sessoes' ? (
+          <div className="flex gap-2 flex-wrap">
+            {/* Registro rápido (21/11/2026): quando não deu pra montar a ficha. */}
+            <Button onClick={() => navigate('/treinos/registrar')}><CheckSquare size={16} /> Registrar o que teve</Button>
+            <Button variant="gold" onClick={nova}><Plus size={16} /> Nova sessão</Button>
+          </div>
+        ) : undefined}
       />
 
       <div className="flex gap-2 mb-4">

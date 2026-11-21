@@ -68,9 +68,22 @@ assert(tem(jogo, 'Precisa cuidar: **Recepção**'), 'aponta recepção pra cuida
 assert(tem(jogo, 'Ainda sem convocadas'), 'avisa que faltam convocadas')
 assert(prepararProximoJogo({ ...dados, jogosAgendados: [] }, hoje).linhas[0].includes('Não há jogo'), 'sem jogo agendado → avisa')
 
-const treino = montarTreino(dados, hoje)
+const treinos = montarTreino(dados, hoje)
+assert(treinos.length === 1, 'um jogo na semana → um cartão de treino')
+const treino = treinos[0]
 assert(tem(treino, 'Foco sugerido: Recepção'), 'treino focado em recepção')
 assert(tem(treino, 'Recepção em W'), 'sugere exercício da biblioteca com o tema')
+assert(treino.acoes.some((a) => a.para === '/treinos/registrar?turma=t1'), 'tem atalho pra só registrar o que teve')
+
+// Pedido 21/11/2026: dois jogos na semana → um cartão de treino pra cada jogo.
+const doisJogos = { ...dados, turmas: [...dados.turmas, { id: 't3', escolaId: 'e1', nome: 'Sub-13' }],
+  jogosAgendados: [...dados.jogosAgendados, { id: 'j5', turmaId: 't3', adversarioNome: 'Dante', data: '2026-11-27', createdAt: '' }] }
+const varios = montarTreino(doisJogos, hoje)
+assert(varios.length === 2, 'dois jogos na semana → dois cartões')
+assert(varios[0].linhas[0].includes('Vértice') && varios[1].linhas[0].includes('Dante'), 'um cartão por jogo, em ordem de data')
+assert(varios[1].titulo.includes('Sub-13'), 'cada cartão é da turma do seu jogo')
+const foraDaSemana = { ...dados, jogosAgendados: [{ id: 'j9', turmaId: 't1', adversarioNome: 'Longe', data: '2026-12-10', createdAt: '' }] }
+assert(montarTreino(foraDaSemana, hoje).length === 1 && montarTreino(foraDaSemana, hoje)[0].linhas[0].includes('Longe'), 'sem jogo na semana → usa o próximo jogo')
 
 assert(entenderPergunta('Quais são minhas pendências?') === 'pendencias', 'entende "pendências"')
 assert(entenderPergunta('como tá minha semana') === 'semana', 'entende "semana"')
