@@ -42,6 +42,11 @@ function ehTeste(...nomes: (string | undefined)[]): boolean {
   return nomes.some((n) => !!n && /teste/i.test(n))
 }
 
+/** "1 jogo", "2 jogos", "0 derrotas". */
+export function plural(n: number, singular: string, pluralTexto = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : pluralTexto}`
+}
+
 function diaCurto(data: string): string {
   const d = parseDataLocal(data)
   return `${DIAS[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -192,13 +197,13 @@ export function prepararProximoJogo(dados: DadosAssistente, hoje: string): Respo
   } else {
     const ultimo = confronto.jogos[0]
     const res = ultimo.setsGanhosCasa > ultimo.setsGanhosAdversario ? 'vitória' : 'derrota'
-    linhas.push(`**Histórico:** ${confronto.jogos.length} jogo(s), ${confronto.vitorias} vitória(s) e ${confronto.derrotas} derrota(s) (último: ${res} ${ultimo.setsGanhosCasa}×${ultimo.setsGanhosAdversario} em ${diaCurto(ultimo.data).slice(4)}).`)
+    linhas.push(`**Histórico:** ${plural(confronto.jogos.length, 'jogo')}, ${plural(confronto.vitorias, 'vitória')} e ${plural(confronto.derrotas, 'derrota')} (último: ${res} ${ultimo.setsGanhosCasa}×${ultimo.setsGanhosAdversario} em ${diaCurto(ultimo.data).slice(4)}).`)
     if (confronto.piorFundamentoNosso) linhas.push(`Contra eles, nosso pior fundamento foi **${LABEL_FUNDAMENTO[confronto.piorFundamentoNosso]}**.`)
   }
 
   const analise = analisarUltimosJogos(dados, jogo.turmaId)
   if (analise.pior) {
-    linhas.push(`**Últimos ${analise.jogosAnalisados} jogo(s) da turma:**`)
+    linhas.push(analise.jogosAnalisados === 1 ? '**Último jogo da turma:**' : `**Últimos ${analise.jogosAnalisados} jogos da turma:**`)
     linhas.push(`- Precisa cuidar: **${LABEL_FUNDAMENTO[analise.pior.fundamento]}** (${descreverLinha(analise.pior.linha)})`)
     if (analise.melhor) linhas.push(`- Ponto forte: **${LABEL_FUNDAMENTO[analise.melhor.fundamento]}** (${descreverLinha(analise.melhor.linha)})`)
   } else {
@@ -206,7 +211,7 @@ export function prepararProximoJogo(dados: DadosAssistente, hoje: string): Respo
   }
 
   const convocadas = jogo.convocadas?.length ?? 0
-  linhas.push(convocadas > 0 ? `**Convocadas:** ${convocadas} atleta(s) ✓` : '⚠️ **Ainda sem convocadas.**')
+  linhas.push(convocadas > 0 ? `**Convocadas:** ${plural(convocadas, 'atleta')} ✓` : '⚠️ **Ainda sem convocadas.**')
   const faltando = checklistDoJogo(jogo).filter((i) => !i.feito).map((i) => i.item)
   if (faltando.length) linhas.push(`**Checklist pendente:** ${faltando.join(', ')}`)
 
@@ -232,7 +237,7 @@ export function montarTreino(dados: DadosAssistente, hoje: string): RespostaAssi
   let temaFoco: string | undefined
   if (analise.pior) {
     temaFoco = TEMA_DO_FUNDAMENTO[analise.pior.fundamento]
-    linhas.push(`**Foco sugerido: ${LABEL_FUNDAMENTO[analise.pior.fundamento]}** — pior fundamento nos últimos ${analise.jogosAnalisados} jogo(s) (${descreverLinha(analise.pior.linha)}).`)
+    linhas.push(`**Foco sugerido: ${LABEL_FUNDAMENTO[analise.pior.fundamento]}** — pior fundamento ${analise.jogosAnalisados === 1 ? 'no último jogo' : `nos últimos ${analise.jogosAnalisados} jogos`} (${descreverLinha(analise.pior.linha)}).`)
   }
 
   const sessoesTurma = dados.sessoesTreino.filter((s) => !s.deletedAt && s.turmaId === turmaId)

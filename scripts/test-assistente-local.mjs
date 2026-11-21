@@ -63,7 +63,7 @@ assert(analise.jogosAnalisados === 1, 'só conta partida finalizada e que não �
 
 const jogo = prepararProximoJogo(dados, hoje)
 assert(jogo.titulo.includes('Aubrick Sub-15') && jogo.titulo.includes('Vértice'), 'próximo jogo = Aubrick Sub-15 × Vértice')
-assert(tem(jogo, '1 jogo(s), 0 vitória(s) e 1 derrota(s)'), 'histórico contra o adversário')
+assert(tem(jogo, '1 jogo, 0 vitórias e 1 derrota'), 'histórico contra o adversário')
 assert(tem(jogo, 'Precisa cuidar: **Recepção**'), 'aponta recepção pra cuidar')
 assert(tem(jogo, 'Ainda sem convocadas'), 'avisa que faltam convocadas')
 assert(prepararProximoJogo({ ...dados, jogosAgendados: [] }, hoje).linhas[0].includes('Não há jogo'), 'sem jogo agendado → avisa')
