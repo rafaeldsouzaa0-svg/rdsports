@@ -131,6 +131,9 @@ export interface Atleta {
    *  desativado pra essa atleta. Nunca mostrar isto em lugar nenhum além da
    *  tela de perfil de quem já está logado como treinador. */
   codigoAcesso?: string
+  /** Apelidos usados no ginásio, separados por vírgula ("Cacau, Clau") —
+   *  o scout por voz reconhece a atleta por eles (21/11/2026). */
+  apelidos?: string
   createdAt: string
   updatedAt?: string
   deletedAt?: string

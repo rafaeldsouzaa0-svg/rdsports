@@ -82,7 +82,8 @@ export default function Assistente() {
     if (limpo) perguntar(limpo, entenderPergunta(limpo))
   }
 
-  const voz = useReconhecimentoVoz((falado) => enviarTexto(falado))
+  // O microfone devolve várias versões do que ouviu; aqui vale a mais provável.
+  const voz = useReconhecimentoVoz((alternativas) => enviarTexto(alternativas[0]))
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-7rem)]">

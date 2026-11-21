@@ -28,7 +28,19 @@ export type ComandoVoz =
     faltando: CampoFaltando[]
   }
 
-export interface AtletaVoz { id: string; nome: string; numero?: string }
+export interface AtletaVoz {
+  id: string
+  nome: string
+  numero?: string
+  /** Apelidos falados no ginásio ("Cacau", "Clau") — cadastrados no perfil
+   *  da atleta (21/11/2026). */
+  apelidos?: string[]
+}
+
+/** "Cacau, Clau / Claudinha" → ['Cacau', 'Clau', 'Claudinha']. */
+export function separarApelidos(texto: string | undefined): string[] {
+  return (texto ?? '').split(/[,;/]/).map((s) => s.trim()).filter(Boolean)
+}
 
 export interface ContextoVoz {
   /** Quem está em quadra agora (no treino: a turma toda). A busca pelo nome
@@ -122,31 +134,58 @@ const PALAVRAS_DO_SCOUT = new Set([
   'numero', 'camisa', 'deles', 'delas', 'jogo', 'fora', 'rede', 'certo', 'certa', 'otima', 'otimo',
 ])
 
-/** Procura uma atleta pelo nome (ou pelo número da camisa, "camisa 7").
- *  Primeiro em quadra, depois no jogo todo. Nome que bate com mais de uma
- *  atleta (ex.: duas "Ana") não é escolhido sozinho — a tela pergunta. */
+/** Quanto de erro aceitar numa palavra de `n` letras (0 = tem que ser igual). */
+function limiteErro(tolerancia: number, n: number): number {
+  if (tolerancia === 0) return 0
+  if (n >= 6) return tolerancia
+  return tolerancia === 1 && n >= 4 ? 1 : -1
+}
+
+const DE_LIGACAO = new Set(['da', 'de', 'do', 'das', 'dos', 'e'])
+
+/** Procura uma atleta pelo nome, apelido, sobrenome ou número da camisa
+ *  ("camisa 7"). Primeiro em quadra, depois no jogo todo. O que bate com
+ *  mais de uma atleta (ex.: duas "Ana") não é escolhido sozinho — a tela
+ *  pergunta. Ordem de confiança: camisa → nome completo/apelido de várias
+ *  palavras → primeiro nome ou apelido → sobrenome. */
 function acharAtleta(frase: string, ctx: ContextoVoz): string | undefined {
   const palavras = frase.split(' ').filter((p) => p.length >= 3 && !PALAVRAS_DO_SCOUT.has(p))
   const numeroCamisa = frase.match(/(?:numero|camisa|n) (\d{1,2})( |$)/)?.[1]
+  const temExpressao = (exp: string) => new RegExp(`(^| )${exp}( |$)`).test(frase)
 
   for (const grupo of [ctx.emQuadra, ctx.todas]) {
     if (numeroCamisa) {
       const pelaCamisa = grupo.filter((a) => a.numero && a.numero.replace(/^0+/, '') === numeroCamisa)
       if (pelaCamisa.length === 1) return pelaCamisa[0].id
     }
-    // Nome completo falado ("Ana Clara") vale mais que só o primeiro nome.
-    const completos = grupo.filter((a) => {
-      const n = normalizarFala(a.nome)
-      return n.includes(' ') && new RegExp(`(^| )${n}( |$)`).test(frase)
-    })
+    // Nome completo ou apelido de várias palavras ("Ana Clara", "Maria Eduarda").
+    const completos = grupo.filter((a) =>
+      [a.nome, ...(a.apelidos ?? [])].map(normalizarFala).some((n) => n.includes(' ') && temExpressao(n)))
     if (completos.length === 1) return completos[0].id
+    // Primeiro nome ou apelido de uma palavra (aceita erro pequeno do reconhecimento).
     for (const tolerancia of [0, 1, 2]) {
       const achadas = grupo.filter((a) => {
-        const primeiro = normalizarFala(a.nome).split(' ')[0]
-        if (!primeiro) return false
-        const limite = tolerancia === 0 ? 0 : primeiro.length >= 6 ? tolerancia : tolerancia === 1 && primeiro.length >= 4 ? 1 : -1
-        if (limite < 0) return false
-        return palavras.some((p) => distancia(p, primeiro) <= limite)
+        const alvos = [normalizarFala(a.nome).split(' ')[0], ...(a.apelidos ?? []).map(normalizarFala).filter((x) => !x.includes(' '))]
+        return alvos.some((alvo) => {
+          if (!alvo) return false
+          const limite = limiteErro(tolerancia, alvo.length)
+          if (limite < 0) return false
+          // Apelido curto ("Bia", "Ju") só vale exato.
+          if (alvo.length < 3) return frase.split(' ').includes(alvo)
+          return palavras.some((p) => distancia(p, alvo) <= limite)
+        })
+      })
+      if (achadas.length === 1) return achadas[0].id
+      if (achadas.length > 1) return undefined
+    }
+    // Sobrenome ("Orsini", "Fasterra") — só se for de uma atleta só.
+    for (const tolerancia of [0, 1]) {
+      const achadas = grupo.filter((a) => {
+        const sobrenomes = normalizarFala(a.nome).split(' ').slice(1).filter((s) => s.length >= 4 && !DE_LIGACAO.has(s))
+        return sobrenomes.some((s) => {
+          const limite = limiteErro(tolerancia, s.length)
+          return limite >= 0 && palavras.some((p) => distancia(p, s) <= limite)
+        })
       })
       if (achadas.length === 1) return achadas[0].id
       if (achadas.length > 1) return undefined
@@ -155,10 +194,57 @@ function acharAtleta(frase: string, ctx: ContextoVoz): string | undefined {
   return undefined
 }
 
+// ---------- Palavras ouvidas errado (ginásio barulhento, 21/11/2026) ----------
+// O reconhecimento de voz costuma trocar palavras parecidas ("pronto" no
+// lugar de "ponto", "ataqui", "bloqueiu"). Antes de interpretar, cada palavra
+// que não é nome de atleta é comparada com o vocabulário do scout: troca
+// conhecida (lista abaixo) ou diferença de 1 letra em palavra de 5+ letras.
+
+const TROCAS_CONHECIDAS: Record<string, string> = {
+  pronto: 'ponto', pontos: 'ponto', punto: 'ponto', ponte: 'ponto',
+  ataqui: 'ataque', atac: 'ataque', ataques: 'ataque', atake: 'ataque',
+  saqui: 'saque', saco: 'saque', saques: 'saque', saquei: 'saque',
+  ase: 'ace', eice: 'ace',
+  bloqueiu: 'bloqueio', bloqueios: 'bloqueio', bloqueia: 'bloqueio', bloquei: 'bloqueio', bloquear: 'bloqueio',
+  recepsao: 'recepcao', recepcoes: 'recepcao', recessao: 'recepcao', recepcion: 'recepcao',
+  defeza: 'defesa', defesas: 'defesa', defende: 'defesa',
+  levantament: 'levantamento', levantamentos: 'levantamento',
+  erros: 'erro', erru: 'erro', hero: 'erro', ero: 'erro',
+  desfas: 'desfaz', desfazendo: 'desfaz',
+}
+
+const VOCABULARIO_SCOUT = [
+  ...new Set([
+    ...FUNDAMENTOS_VOZ.flatMap((x) => x.palavras).filter((p) => !p.includes(' ')),
+    'ponto', 'erro', 'errou', 'errada', 'errado', 'otima', 'otimo', 'media', 'medio', 'perfeita', 'perfeito',
+    'regular', 'razoavel', 'continua', 'continuou', 'seguiu', 'devolveu', 'excelente', 'certa', 'certo',
+    'acerto', 'acertou', 'matou', 'pontuou', 'pessima', 'pessimo', 'perdeu',
+    'deles', 'delas', 'adversario', 'adversaria', 'adversarios', 'rival',
+    'desfaz', 'desfazer', 'desfaca', 'apaga', 'apagar', 'cancela', 'cancelar', 'volta', 'voltar',
+    'confirma', 'confirmar', 'confirmado', 'confirmo', 'camisa', 'numero', 'depois', 'entao',
+  ]),
+].filter((p) => p.length >= 5)
+
+/** Troca palavras ouvidas errado pelo termo do scout. Nunca mexe em nome ou
+ *  apelido de atleta (ex.: "Sacha" não vira "saque"). */
+export function corrigirPalavras(fraseNormalizada: string, ctx?: ContextoVoz): string {
+  const nomes = new Set<string>()
+  for (const a of ctx?.todas ?? []) {
+    for (const n of [a.nome, ...(a.apelidos ?? [])]) normalizarFala(n).split(' ').forEach((p) => nomes.add(p))
+  }
+  return fraseNormalizada.split(' ').map((p) => {
+    if (!p || nomes.has(p)) return p
+    if (TROCAS_CONHECIDAS[p]) return TROCAS_CONHECIDAS[p]
+    if (p.length < 5 || VOCABULARIO_SCOUT.includes(p)) return p
+    const parecida = VOCABULARIO_SCOUT.filter((v) => Math.abs(v.length - p.length) <= 1 && distancia(p, v) <= 1)
+    return parecida.length === 1 ? parecida[0] : p
+  }).join(' ')
+}
+
 /** Interpreta uma frase falada. Nunca inventa: o que não entendeu volta em
  *  `faltando` pra tela perguntar. */
 export function interpretarFala(texto: string, ctx: ContextoVoz): ComandoVoz {
-  const frase = normalizarFala(texto)
+  const frase = corrigirPalavras(normalizarFala(texto), ctx)
   if (!frase) return { tipo: 'vazio' }
   if (temPalavra(frase, DESFAZER) && frase.split(' ').length <= 3) return { tipo: 'desfazer' }
 
@@ -295,7 +381,7 @@ export function separarJogadas(fraseNormalizada: string): string[] {
 /** Interpreta uma fala que pode ter várias jogadas, ou ser só uma resposta
  *  ("confirma", "cancela") pra lista que está esperando confirmação. */
 export function interpretarFalaVarias(texto: string, ctx: ContextoVoz, esperandoConfirmacao = false): FalaVarias {
-  let frase = normalizarFala(texto)
+  let frase = corrigirPalavras(normalizarFala(texto), ctx)
   if (!frase) return { tipo: 'vazio' }
   const poucasPalavras = frase.split(' ').length <= 3
   if (esperandoConfirmacao && poucasPalavras) {
@@ -322,4 +408,25 @@ export function interpretarFalaVarias(texto: string, ctx: ContextoVoz, esperando
     return unica.tipo === 'jogada' ? { tipo: 'jogadas', jogadas: [unica], confirmarNoFim } : { tipo: 'vazio' }
   }
   return { tipo: 'jogadas', jogadas, confirmarNoFim }
+}
+
+/** Quanto falta numa interpretação (menor = entendeu melhor). */
+function faltaNaFala(f: FalaVarias): number {
+  if (f.tipo === 'vazio') return 1000
+  if (f.tipo !== 'jogadas') return 0
+  return f.jogadas.reduce((s, j) => s + j.faltando.length, 0)
+}
+
+/** O celular pode devolver várias versões do que ouviu (útil no barulho do
+ *  ginásio). Fica com a que o scout entende melhor; empate = a primeira, que
+ *  é a que o reconhecimento achou mais provável. Devolve também o texto
+ *  escolhido, pra mostrar "Você disse". */
+export function escolherMelhorFala(alternativas: string[], ctx: ContextoVoz, esperandoConfirmacao = false): { texto: string; fala: FalaVarias } {
+  let melhor: { texto: string; fala: FalaVarias } | null = null
+  for (const texto of alternativas.map((t) => t.trim()).filter(Boolean)) {
+    const fala = interpretarFalaVarias(texto, ctx, esperandoConfirmacao)
+    if (!melhor || faltaNaFala(fala) < faltaNaFala(melhor.fala)) melhor = { texto, fala }
+    if (faltaNaFala(fala) === 0) break
+  }
+  return melhor ?? { texto: '', fala: { tipo: 'vazio' } }
 }
