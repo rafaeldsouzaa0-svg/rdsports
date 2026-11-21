@@ -3,11 +3,11 @@
 // fundamento). Toca no microfone, fala a jogada, e:
 // - se deu pra entender tudo, marca na hora e fala a confirmação;
 // - se faltou algo (quem foi, o resultado…), pergunta com botões.
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, Undo2, Volume2, VolumeX, Keyboard } from 'lucide-react'
 import {
-  interpretarFala, fraseConfirmacao, resultadosPossiveis, SEM_RESULTADO, LABEL_FUNDAMENTO_VOZ, LABEL_RESULTADO_VOZ,
-  type AtletaVoz, type ComandoVoz,
+  interpretarFalaVarias, fraseConfirmacao, resultadosPossiveis, SEM_RESULTADO, LABEL_FUNDAMENTO_VOZ, LABEL_RESULTADO_VOZ,
+  type AtletaVoz, type Jogada,
 } from '../scoutVoz'
 import { useReconhecimentoVoz, falar } from '../useReconhecimentoVoz'
 import type { FundamentoScout, ResultadoEvento } from '../types'
@@ -20,7 +20,22 @@ export interface MarcacaoVoz {
   numeroAdversario?: string
 }
 
-type Jogada = Extract<ComandoVoz, { tipo: 'jogada' }>
+/** Preenche o que faltava numa jogada e recalcula o que ainda falta. */
+function completarJogada(base: Jogada, patch: Partial<Jogada>, sacadoraId?: string | null): Jogada {
+  const j: Jogada = { ...base, ...patch }
+  if (j.fundamento && SEM_RESULTADO.includes(j.fundamento)) j.resultado = j.fundamento === 'nao_deslocou' ? 'ERRO' : 'ACERTO'
+  if (j.fundamento === 'saque' && !j.atletaId && j.lado === 'CASA' && sacadoraId) j.atletaId = sacadoraId
+  if (j.fundamento && j.resultado && j.lado === 'CASA' && !SEM_RESULTADO.includes(j.fundamento) && !resultadosPossiveis(j.fundamento).includes(j.resultado)) j.resultado = undefined
+  const faltando: Jogada['faltando'] = []
+  if (!j.fundamento) faltando.push('fundamento')
+  if (j.lado === 'CASA' && !j.atletaId) faltando.push('atleta')
+  if (!j.resultado) faltando.push('resultado')
+  return { ...j, faltando }
+}
+
+const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+
+const paraMarcacao = (j: Jogada): MarcacaoVoz => ({ lado: j.lado, fundamento: j.fundamento!, resultado: j.resultado!, atletaId: j.atletaId, numeroAdversario: j.numeroAdversario })
 
 const FUNDAMENTOS_CASA: FundamentoScout[] = ['saque', 'recepcao', 'levantamento', 'ataque', 'bloqueio', 'defesa', 'bola_de_graca', 'bola_de_segunda', 'nao_deslocou']
 const ADV_PONTO: FundamentoScout[] = ['ataque', 'saque', 'bloqueio', 'bola_de_segunda']
@@ -34,6 +49,8 @@ const EXEMPLOS = [
   ['"Ponto deles, ataque"', 'ponto do adversário'],
   ['"Erro deles, saque"', 'erro do adversário'],
   ['"Desfaz"', 'apaga a última'],
+  ['"Recepção Sofia boa, levantamento Júlia boa, ataque Marina ponto"', 'várias de uma vez → confirma'],
+  ['"… ataque Marina ponto, confirma"', 'marca direto, sem perguntar'],
 ]
 
 function lerPreferencia(chave: string, padrao: boolean): boolean {
@@ -49,7 +66,8 @@ export default function PainelVoz({
   emQuadra: AtletaVoz[]
   todas: AtletaVoz[]
   sacadoraId?: string | null
-  onMarcar: (m: MarcacaoVoz) => void
+  /** Marca uma ou várias jogadas, nessa ordem (várias = falou tudo de uma vez). */
+  onMarcar: (m: MarcacaoVoz[]) => void
   onDesfazer: () => void
   /** Chamado ao tocar no microfone (no scout pelo vídeo: pausa o vídeo e
    *  guarda o minuto do lance). */
@@ -59,6 +77,9 @@ export default function PainelVoz({
 }) {
   const [ouvido, setOuvido] = useState<string | null>(null)
   const [pendente, setPendente] = useState<Jogada | null>(null)
+  // Várias jogadas na mesma fala (pedido 21/11/2026): ficam numa lista pra
+  // conferir e só são marcadas quando o professor confirma.
+  const [lista, setLista] = useState<Jogada[] | null>(null)
   const [marcado, setMarcado] = useState<{ frase: string } | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [comSom, setComSom] = useState(() => lerPreferencia('rdsports_voz_som', true))
@@ -68,13 +89,15 @@ export default function PainelVoz({
 
   const nomeDe = (id?: string) => todas.find((a) => a.id === id)?.nome
 
-  const concluir = useCallback((j: Jogada) => {
-    if (!j.fundamento || !j.resultado) return
-    const m: MarcacaoVoz = { lado: j.lado, fundamento: j.fundamento, resultado: j.resultado, atletaId: j.atletaId, numeroAdversario: j.numeroAdversario }
-    onMarcar(m)
-    const frase = fraseConfirmacao(m, nomeDe(j.atletaId))
-    setMarcado({ frase })
+  const concluir = useCallback((js: Jogada[]) => {
+    const prontas = js.filter((j) => j.fundamento && j.resultado)
+    if (prontas.length === 0) return
+    const ms = prontas.map(paraMarcacao)
+    onMarcar(ms)
+    const frase = ms.length === 1 ? fraseConfirmacao(ms[0], nomeDe(ms[0].atletaId)) : `${ms.length} jogadas marcadas`
+    setMarcado({ frase: ms.map((m) => fraseConfirmacao(m, nomeDe(m.atletaId), true)).join(' · ') })
     setPendente(null)
+    setLista(null)
     if (comSom) falar(frase)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onMarcar, comSom, todas])
@@ -83,56 +106,80 @@ export default function PainelVoz({
     setOuvido(fala)
     setAviso(null)
     setMarcado(null)
-    const c = interpretarFala(fala, { emQuadra, todas, sacadoraId })
+    const c = interpretarFalaVarias(fala, { emQuadra, todas, sacadoraId }, listaRef.current !== null)
     if (c.tipo === 'vazio') { setAviso('Não entendi. Toque e fale de novo.'); return }
+    if (c.tipo === 'confirmar') {
+      const atual = listaRef.current
+      if (atual && atual.every((j) => j.faltando.length === 0)) concluir(atual)
+      else if (atual) setAviso('Ainda falta completar alguma jogada da lista.')
+      return
+    }
+    if (c.tipo === 'cancelar') { setLista(null); setPendente(null); setAviso('Cancelado. Nada foi marcado.'); return }
     if (c.tipo === 'desfazer') {
       if (podeDesfazer) { onDesfazer(); setMarcado({ frase: 'Última marcação desfeita' }); if (comSom) falar('Desfeito') }
       else setAviso('Não tem nada pra desfazer.')
       setPendente(null)
+      setLista(null)
       return
     }
-    if (c.faltando.length === 0) concluir(c)
-    else setPendente(c)
-  }, [emQuadra, todas, sacadoraId, podeDesfazer, onDesfazer, comSom, concluir])
+    const completas = c.jogadas.every((j) => j.faltando.length === 0)
+    if (c.jogadas.length === 1 && !lista) {
+      // Uma jogada só: igual antes (marca na hora ou pergunta o que faltou).
+      setLista(null)
+      if (completas) concluir(c.jogadas)
+      else setPendente(c.jogadas[0])
+      return
+    }
+    // Com uma lista já esperando, o que for falado agora entra no fim dela
+    // (dá pra ir falando o rally aos pedaços e confirmar no final).
+    const nova = [...(listaRef.current ?? []), ...c.jogadas]
+    if (c.confirmarNoFim && nova.every((j) => j.faltando.length === 0)) { concluir(nova); return }
+    setPendente(null)
+    setLista(nova)
+    if (comSom) falar(`${nova.length === 1 ? 'Uma jogada' : `${nova.length} jogadas`}. Confirma?`)
+  }, [emQuadra, todas, sacadoraId, podeDesfazer, onDesfazer, comSom, concluir, lista])
 
   const { ouvindo, parcial, erro, ouvir, parar, disponivel } = useReconhecimentoVoz(processar)
+  // `processar` precisa saber se tem lista esperando confirmação ("confirma").
+  const listaRef = useRef<Jogada[] | null>(null)
+  useEffect(() => { listaRef.current = lista }, [lista])
 
   function tocarMicrofone() {
     if (ouvindo) { parar(); return }
-    aoComecar?.()
+    if (!listaRef.current) aoComecar?.()
     setPendente(null)
     setMarcado(null)
     setAviso(null)
     ouvir()
   }
 
+  // Índice da jogada da lista que está sendo completada (a primeira incompleta).
+  const idxIncompleta = lista ? lista.findIndex((j) => j.faltando.length > 0) : -1
+  const emPergunta: Jogada | null = lista ? (idxIncompleta >= 0 ? lista[idxIncompleta] : null) : pendente
+
   function completar(patch: Partial<Jogada>) {
+    if (lista && idxIncompleta >= 0) {
+      setLista(lista.map((j, i) => (i === idxIncompleta ? completarJogada(j, patch, sacadoraId) : j)))
+      return
+    }
     if (!pendente) return
-    const j: Jogada = { ...pendente, ...patch }
-    if (j.fundamento && SEM_RESULTADO.includes(j.fundamento)) j.resultado = j.fundamento === 'nao_deslocou' ? 'ERRO' : 'ACERTO'
-    if (j.fundamento === 'saque' && !j.atletaId && j.lado === 'CASA' && sacadoraId) j.atletaId = sacadoraId
-    if (j.fundamento && j.resultado && j.lado === 'CASA' && !SEM_RESULTADO.includes(j.fundamento) && !resultadosPossiveis(j.fundamento).includes(j.resultado)) j.resultado = undefined
-    const faltando: Jogada['faltando'] = []
-    if (!j.fundamento) faltando.push('fundamento')
-    if (j.lado === 'CASA' && !j.atletaId) faltando.push('atleta')
-    if (!j.resultado) faltando.push('resultado')
-    j.faltando = faltando
-    if (faltando.length === 0) concluir(j)
+    const j = completarJogada(pendente, patch, sacadoraId)
+    if (j.faltando.length === 0) concluir([j])
     else setPendente(j)
   }
 
   function enviarTexto(e: React.FormEvent) {
     e.preventDefault()
     if (!texto.trim()) return
-    aoComecar?.()
+    if (!listaRef.current) aoComecar?.()
     processar(texto.trim())
     setTexto('')
   }
 
   // Próxima pergunta, na ordem: (adversário) ponto ou erro → fundamento → atleta → resultado.
   let pergunta: React.ReactNode = null
-  if (pendente) {
-    const p = pendente
+  if (emPergunta) {
+    const p = emPergunta
     if (p.lado === 'ADVERSARIO' && !p.resultado) {
       pergunta = (
         <Pergunta titulo="Foi ponto ou erro do adversário?">
@@ -190,7 +237,8 @@ export default function PainelVoz({
         >
           <Mic size={48} />
         </button>
-        <div className="font-bold text-base mt-2">{ouvindo ? 'Ouvindo… fale a jogada' : 'Toque e fale a jogada'}</div>
+        <div className="font-bold text-base mt-2">{ouvindo ? 'Ouvindo…' : lista ? 'Toque e fale "confirma"' : 'Toque e fale a jogada'}</div>
+        {!ouvindo && !lista && <div className="text-xs text-[var(--rd-text-dim)] text-center">Pode falar várias jogadas seguidas — o app mostra a lista pra você confirmar.</div>}
         {!disponivel && <p className="text-xs text-center text-[var(--rd-erro)]">Este navegador não tem reconhecimento de voz. Dá pra digitar a jogada aqui embaixo.</p>}
       </div>
 
@@ -214,7 +262,37 @@ export default function PainelVoz({
         </div>
       )}
 
-      {pendente && (
+      {lista && (
+        <div className="rounded-xl p-3 mb-3" style={{ border: '2px solid var(--rd-gold)' }}>
+          <div className="text-xs font-bold mb-2 rd-accent-text">📋 Confira antes de marcar ({lista.length})</div>
+          {lista.map((j, i) => {
+            const nome = j.lado === 'ADVERSARIO' ? `Adversário${j.numeroAdversario ? ` (camisa ${j.numeroAdversario})` : ''}` : nomeDe(j.atletaId) ?? '❓ quem?'
+            const res = j.resultado ? (j.lado === 'ADVERSARIO' ? (j.resultado === 'ERRO' ? 'Erro deles' : 'Ponto deles') : LABEL_RESULTADO_VOZ[j.resultado]) : '❓ como foi?'
+            const corRes = !j.resultado ? '#f6b93b' : (j.lado === 'CASA') === (j.resultado === 'ERRO') ? 'var(--rd-erro)' : j.resultado === 'MEDIO' || j.resultado === 'EM_JOGO' ? 'var(--rd-neutro)' : 'var(--rd-positivo)'
+            return (
+              <div key={i} className="flex items-center justify-between gap-2 py-2 border-b last:border-b-0 text-sm" style={{ borderColor: 'var(--rd-border)', background: i === idxIncompleta ? 'rgba(246,185,59,.10)' : undefined }}>
+                <span className="min-w-0">
+                  <b>{i + 1}.</b> {j.fundamento ? maiuscula(LABEL_FUNDAMENTO_VOZ[j.fundamento]) : '❓ fundamento?'} · {nome} · <b style={{ color: corRes }}>{maiuscula(res)}</b>
+                </span>
+                <button className="text-[var(--rd-text-dim)] shrink-0 px-2" aria-label="Tirar esta jogada" onClick={() => setLista(lista.length > 1 ? lista.filter((_, k) => k !== i) : null)}>✕</button>
+              </div>
+            )
+          })}
+          {idxIncompleta >= 0 && (
+            <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--rd-border)' }}>
+              <div className="text-xs font-bold mb-2" style={{ color: '#f6b93b' }}>🤔 Jogada {idxIncompleta + 1}: falta um detalhe</div>
+              {pergunta}
+            </div>
+          )}
+          <div className="flex gap-2 mt-3">
+            <button className="rd-btn rd-btn-gold flex-1" disabled={idxIncompleta >= 0} onClick={() => concluir(lista)}>✅ Confirmar {lista.length > 1 ? `as ${lista.length}` : ''}</button>
+            <button className="rd-btn" onClick={() => { setLista(null); setAviso('Cancelado. Nada foi marcado.') }}>Cancelar</button>
+          </div>
+          <p className="text-xs text-[var(--rd-text-dim)] mt-2">Ou toque no microfone e fale <b>"confirma"</b> (ou "cancela").</p>
+        </div>
+      )}
+
+      {pendente && !lista && (
         <div className="rounded-xl p-3 mb-3" style={{ border: '2px solid #f6b93b' }}>
           <div className="text-xs font-bold mb-2" style={{ color: '#f6b93b' }}>🤔 Falta só um detalhe</div>
           {pergunta}

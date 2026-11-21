@@ -215,6 +215,8 @@ const LABEL_FUNDAMENTO_VOZ: Record<FundamentoScout, string> = {
 export function fraseConfirmacao(
   c: { lado: 'CASA' | 'ADVERSARIO'; fundamento: FundamentoScout; resultado: ResultadoEvento; numeroAdversario?: string },
   nomeAtleta?: string,
+  /** true = nome completo (na tela); false = só o primeiro nome (falado). */
+  nomeCompleto = false,
 ): string {
   const f = LABEL_FUNDAMENTO_VOZ[c.fundamento]
   if (c.lado === 'ADVERSARIO') {
@@ -222,9 +224,102 @@ export function fraseConfirmacao(
     const quem = c.numeroAdversario ? ` camisa ${c.numeroAdversario}` : ''
     return c.resultado === 'ERRO' ? `Erro deles${quem}, ${f}` : `Ponto deles${quem}, ${f}`
   }
-  const nome = nomeAtleta ? ` ${nomeAtleta.split(' ')[0]}` : ''
+  const nome = nomeAtleta ? ` ${nomeCompleto ? nomeAtleta : nomeAtleta.split(' ')[0]}` : ''
   if (SEM_RESULTADO.includes(c.fundamento)) return `${f[0].toUpperCase()}${f.slice(1)}${nome}`
   return `${f[0].toUpperCase()}${f.slice(1)}${nome}, ${LABEL_RESULTADO_VOZ[c.resultado]}`
 }
 
 export { LABEL_RESULTADO_VOZ, LABEL_FUNDAMENTO_VOZ }
+
+// ---------- Várias jogadas na mesma fala (pedido 21/11/2026) ----------
+// Ex.: "Recepção Sofia boa, levantamento Maria Eduarda boa, ataque Valentina
+// ponto" → 3 jogadas. O reconhecimento de voz quase nunca põe vírgula, então
+// a frase é cortada a cada palavra de fundamento ("recepção", "ataque"…) e
+// a cada "ponto deles"/"erro deles". O professor confere a lista e confirma
+// (tocando ou falando "confirma"); pode também terminar a fala com
+// "confirma" pra marcar direto.
+
+export type Jogada = Extract<ComandoVoz, { tipo: 'jogada' }>
+
+export type FalaVarias =
+  | { tipo: 'vazio' }
+  | { tipo: 'desfazer' }
+  | { tipo: 'confirmar' }
+  | { tipo: 'cancelar' }
+  | { tipo: 'jogadas'; jogadas: Jogada[]; confirmarNoFim: boolean }
+
+const PALAVRAS_CONFIRMAR = ['confirma', 'confirmar', 'confirmado', 'confirmo', 'pode marcar', 'pode confirmar', 'marca tudo', 'marcar tudo']
+const RESPOSTA_SIM = [...PALAVRAS_CONFIRMAR, 'sim', 'pode', 'ok', 'isso', 'isso mesmo', 'certo', 'correto', 'beleza']
+const RESPOSTA_NAO = ['nao', 'cancela', 'cancelar', 'cancelado', 'apaga', 'apagar', 'esquece']
+const PREFIXOS_ADVERSARIO = ['ponto deles', 'ponto delas', 'erro deles', 'erro delas', 'ponto do adversario', 'erro do adversario']
+
+/** Quanto de palavras (a partir de `i`) formam um início de jogada, ou 0. */
+function inicioEm(tokens: string[], i: number, lista: string[]): number {
+  for (const exp of lista) {
+    const partes = exp.split(' ')
+    if (partes.every((p, k) => tokens[i + k] === p)) return partes.length
+  }
+  return 0
+}
+
+const TODAS_PALAVRAS_FUNDAMENTO = FUNDAMENTOS_VOZ.flatMap((x) => x.palavras).sort((a, b) => b.split(' ').length - a.split(' ').length)
+
+/** Corta a fala em pedaços, um por jogada. */
+export function separarJogadas(fraseNormalizada: string): string[] {
+  const pedacos: string[] = []
+  for (const parte of fraseNormalizada.split(/ (?:depois|em seguida|e depois|entao) /)) {
+    const tokens = parte.split(' ').filter(Boolean)
+    let atual: string[] = []
+    let temFundamento = false
+    let temAdv = false
+    for (let i = 0; i < tokens.length;) {
+      const adv = inicioEm(tokens, i, PREFIXOS_ADVERSARIO)
+      const fund = adv ? 0 : inicioEm(tokens, i, TODAS_PALAVRAS_FUNDAMENTO)
+      if ((adv && (temFundamento || temAdv)) || (fund && temFundamento)) {
+        pedacos.push(atual.join(' '))
+        atual = []
+        temFundamento = false
+        temAdv = false
+      }
+      const n = adv || fund || 1
+      atual.push(...tokens.slice(i, i + n))
+      if (adv) temAdv = true
+      if (fund) temFundamento = true
+      i += n
+    }
+    if (atual.length) pedacos.push(atual.join(' '))
+  }
+  return pedacos.map((p) => p.trim()).filter(Boolean)
+}
+
+/** Interpreta uma fala que pode ter várias jogadas, ou ser só uma resposta
+ *  ("confirma", "cancela") pra lista que está esperando confirmação. */
+export function interpretarFalaVarias(texto: string, ctx: ContextoVoz, esperandoConfirmacao = false): FalaVarias {
+  let frase = normalizarFala(texto)
+  if (!frase) return { tipo: 'vazio' }
+  const poucasPalavras = frase.split(' ').length <= 3
+  if (esperandoConfirmacao && poucasPalavras) {
+    if (temPalavra(frase, RESPOSTA_NAO)) return { tipo: 'cancelar' }
+    if (temPalavra(frase, RESPOSTA_SIM)) return { tipo: 'confirmar' }
+  }
+  if (poucasPalavras && temPalavra(frase, DESFAZER)) return { tipo: 'desfazer' }
+
+  // "…, confirma" no fim da fala = marcar direto, sem esperar o toque.
+  let confirmarNoFim = false
+  for (const p of PALAVRAS_CONFIRMAR) {
+    const m = frase.match(new RegExp(`(^| )${p}$`))
+    if (m) { confirmarNoFim = true; frase = frase.slice(0, m.index).trim(); break }
+  }
+  if (!frase) return esperandoConfirmacao ? { tipo: 'confirmar' } : { tipo: 'vazio' }
+
+  const jogadas = separarJogadas(frase)
+    .map((pedaco) => interpretarFala(pedaco, ctx))
+    .filter((c): c is Jogada => c.tipo === 'jogada')
+    // Pedaço sem nada reconhecível (ex.: só "e") não vira jogada.
+    .filter((j) => j.faltando.length < 3 || j.lado === 'ADVERSARIO')
+  if (jogadas.length === 0) {
+    const unica = interpretarFala(frase, ctx)
+    return unica.tipo === 'jogada' ? { tipo: 'jogadas', jogadas: [unica], confirmarNoFim } : { tipo: 'vazio' }
+  }
+  return { tipo: 'jogadas', jogadas, confirmarNoFim }
+}

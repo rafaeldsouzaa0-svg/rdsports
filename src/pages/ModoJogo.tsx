@@ -366,9 +366,22 @@ export default function ModoJogo() {
     playerRef.current.pausar()
   }
 
-  function marcarPorVoz(m: MarcacaoVoz) {
+  /** Marca as jogadas faladas, na ordem (pedido 21/11/2026: várias numa fala
+   *  só). Se o set fechar no meio, o resto não entra (não pode ponto depois
+   *  do fim do set). */
+  function marcarPorVoz(ms: MarcacaoVoz[]) {
     if (tempoDoLance.current === null && videoAberto) inicioDoLance()
-    registrar(registrarEventoTime(setAtual, m.lado, m.fundamento, m.resultado, m.lado === 'CASA' ? m.atletaId : undefined, m.numeroAdversario))
+    let novoSet = setAtual
+    let marcadas = 0
+    for (const m of ms) {
+      if (setEstaFechado(novoSet, partida!)) break
+      novoSet = registrarEventoTime(novoSet, m.lado, m.fundamento, m.resultado, m.lado === 'CASA' ? m.atletaId : undefined, m.numeroAdversario)
+      if (videoAberto) novoSet = carimbarVideo(novoSet, tempoDoLance.current)
+      marcadas += 1
+    }
+    tempoDoLance.current = null
+    persistirESeFechou(novoSet)
+    if (marcadas < ms.length) alert(`O set acabou na jogada ${marcadas}. As outras ${ms.length - marcadas} não foram marcadas.`)
   }
 
   function usarLinkVideo() {
