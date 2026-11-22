@@ -74,6 +74,11 @@ async function executarPush() {
       campeonatos: s.campeonatos, partidas: s.partidas, jogosAgendados: s.jogosAgendados, avaliacoes: s.avaliacoes,
       sessoesTreino: s.sessoesTreino, bibliotecaExercicios: s.bibliotecaExercicios, chamadas: s.chamadas ?? [],
     })
+    // Envio confirmado: as partidas enviadas deixam de ser "pendentes" (a
+    // partir daqui a nuvem pode atualizá-las de novo). Se o envio falhou, o
+    // pushAll lança erro e elas continuam protegidas (21/11/2026).
+    aplicandoDaNuvem = true
+    try { useStore.getState().marcarPartidasEnviadas(s.partidas) } finally { aplicandoDaNuvem = false }
     useSyncStatus.getState().setStatus('sincronizado')
   } catch (err) {
     console.warn('[sync] falha ao empurrar pra nuvem', err)
