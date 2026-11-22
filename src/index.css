@@ -273,6 +273,18 @@ a { color: inherit; text-decoration: none; }
 .rd-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .rd-avatar-ouro { border-color: var(--rd-gold); color: var(--rd-gold-strong); }
 
+/* Janela flutuante do vídeo no scout (21/11/2026 — components/PlayerVideo.tsx,
+   só celular/tablet): fica por cima de tudo, menos das janelas de marcação. */
+.rd-video-flutuante {
+  position: fixed;
+  z-index: 40;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--rd-surface);
+  border: 1px solid var(--rd-gold);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
 /* Bolinha do indicador de sincronização (components/ui.tsx: IndicadorSync) */
 @keyframes rd-pulse {
   0%, 100% { opacity: 1; }
