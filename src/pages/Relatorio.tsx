@@ -526,7 +526,10 @@ function SecaoScout({ titulo, sets, atletas, partida, rotuloRecorte }: { titulo:
             </Card>
           )}
 
-          <div className="grid gap-3">
+          {/* minmax(0,1fr): sem isso, a tabela de cada atleta empurrava o
+              cartão (e a página inteira) pra fora da tela do celular
+              (corrigido 21/11/2026). */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
             {porAtleta.map(({ atletaId, porFundamento, totalGeral }) => {
               const atleta = atletas.find((a) => a.id === atletaId)
               return (
@@ -553,14 +556,16 @@ function SecaoScout({ titulo, sets, atletas, partida, rotuloRecorte }: { titulo:
                     <p className="text-xs text-[var(--rd-text-dim)]">Não entrou em quadra (ou nenhuma ação registrada) neste recorte.</p>
                   ) : (
                     <div className="overflow-x-auto -mx-1">
-                      <table className="w-full text-xs min-w-[460px]">
+                      {/* Cabeçalho curto no celular (Pos./Neu.) pra tabela caber
+                          na tela sem arrastar pro lado; completo no computador. */}
+                      <table className="w-full text-xs">
                         <thead>
                           <tr className="text-[var(--rd-text-dim)] text-left uppercase text-[10px]">
                             <th className="py-1 px-1 font-bold">Fundamento</th>
-                            <th className="py-1 px-1 font-bold text-center">Positivo</th>
-                            <th className="py-1 px-1 font-bold text-center">Neutro</th>
+                            <th className="py-1 px-1 font-bold text-center" title="Positivo"><span className="sm:hidden">Pos.</span><span className="hidden sm:inline">Positivo</span></th>
+                            <th className="py-1 px-1 font-bold text-center" title="Neutro"><span className="sm:hidden">Neu.</span><span className="hidden sm:inline">Neutro</span></th>
                             <th className="py-1 px-1 font-bold text-center">Erro</th>
-                            <th className="py-1 px-1 font-bold text-center">Total</th>
+                            <th className="py-1 px-1 font-bold text-center" title="Total"><span className="sm:hidden">Tot.</span><span className="hidden sm:inline">Total</span></th>
                             <th className="py-1 px-1 font-bold text-center">Efic.</th>
                           </tr>
                         </thead>
