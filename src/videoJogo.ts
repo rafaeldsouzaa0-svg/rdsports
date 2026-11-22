@@ -42,6 +42,39 @@ export function formatarTempo(seg: number): string {
  *  professor toca no botão depois que a jogada aconteceu. */
 export const RECUO_LANCE_SEG = 5
 
+/** Link do YouTube que já abre no lance (uns segundos antes), pra mandar
+ *  pela atleta/pais pelo WhatsApp (21/11/2026). */
+export function linkLanceYoutube(idVideo: string, videoSeg: number): string {
+  return `https://youtu.be/${idVideo}?t=${Math.max(0, Math.floor(videoSeg - RECUO_LANCE_SEG))}`
+}
+
+/** Mensagem pronta pro WhatsApp: "Lance da Ana — Ataque, ponto (set 1, 5×3): link". */
+export function mensagemLance(o: { nome?: string; fundamento: string; resultado: string; setNumero: number; placarCasa: number; placarAdversario: number; link: string }): string {
+  const quem = o.nome ? `Lance da ${o.nome}` : 'Lance'
+  return `${quem} — ${o.fundamento}, ${o.resultado.toLowerCase()} (set ${o.setNumero}, ${o.placarCasa}×${o.placarAdversario}): ${o.link}`
+}
+
+/** Passo do "quadro a quadro": ~1 quadro de vídeo de 30 fps. */
+export const PASSO_QUADRO_SEG = 1 / 30
+
+export type AcaoTecla = 'tocar_pausar' | 'voltar' | 'avancar' | 'quadro_tras' | 'quadro_frente' | 'velocidade_1' | 'velocidade_05' | 'velocidade_025'
+
+/** Atalhos do player no computador (21/11/2026): espaço/K = play/pausa,
+ *  ←/→ = 5 s, vírgula/ponto = quadro a quadro, 1/2/3 = velocidade. */
+export function acaoDaTecla(tecla: string): AcaoTecla | null {
+  switch (tecla) {
+    case ' ': case 'k': case 'K': return 'tocar_pausar'
+    case 'ArrowLeft': case 'j': case 'J': return 'voltar'
+    case 'ArrowRight': case 'l': case 'L': return 'avancar'
+    case ',': case '<': return 'quadro_tras'
+    case '.': case '>': return 'quadro_frente'
+    case '1': return 'velocidade_1'
+    case '2': return 'velocidade_05'
+    case '3': return 'velocidade_025'
+    default: return null
+  }
+}
+
 export interface LanceVideo {
   eventoId: string
   setNumero: number

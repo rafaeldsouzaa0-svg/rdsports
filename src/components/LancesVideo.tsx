@@ -3,10 +3,10 @@
 // atleta e ver só os erros, um atrás do outro ("Próximo"), pra mostrar pra
 // atleta no treino.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Film, FolderOpen, SkipForward } from 'lucide-react'
+import { Film, FolderOpen, SkipForward, Send } from 'lucide-react'
 import { Card } from './ui'
 import PlayerVideo, { type ControlePlayer, type FonteVideo } from './PlayerVideo'
-import { idYoutube, lancesComVideo, formatarTempo, RECUO_LANCE_SEG, type LanceVideo } from '../videoJogo'
+import { idYoutube, lancesComVideo, formatarTempo, RECUO_LANCE_SEG, linkLanceYoutube, mensagemLance, type LanceVideo } from '../videoJogo'
 import { LABEL_FUNDAMENTO } from '../scoutEngine'
 import type { Atleta, Partida, ResultadoEvento } from '../types'
 
@@ -51,13 +51,34 @@ export default function LancesVideo({ partida, atletas }: { partida: Partida; at
     if (playerRef.current) playerRef.current.irPara(alvo, true)
     else pendente.current = alvo
   }
+  /** Manda o lance (link do YouTube já no segundo certo) pelo WhatsApp
+   *  (21/11/2026). No celular abre a tela de compartilhar (dá pra escolher o
+   *  WhatsApp e o contato); no computador abre o WhatsApp Web. */
+  async function enviar(l: LanceVideo) {
+    if (!idYt) return
+    const primeiroNome = l.lado === 'CASA' ? atletas.find((a) => a.id === l.atletaId)?.nome.split(' ')[0] : undefined
+    const texto = mensagemLance({
+      nome: primeiroNome, fundamento: LABEL_FUNDAMENTO[l.fundamento], resultado: LABEL_RES[l.resultado],
+      setNumero: l.setNumero, placarCasa: l.placarCasa, placarAdversario: l.placarAdversario,
+      link: linkLanceYoutube(idYt, l.videoSeg),
+    })
+    const nav = navigator as Navigator & { share?: (d: { text: string }) => Promise<void> }
+    if (nav.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      try { await nav.share({ text: texto }); return } catch { /* cancelou ou não deu: cai no WhatsApp direto */ }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank', 'noopener')
+  }
+
   const idx = lances.findIndex((l) => l.eventoId === atual)
   const proximo = idx >= 0 ? lances[idx + 1] : lances[0]
 
   return (
     <Card className="mb-5">
       <div className="font-bold text-sm mb-1 flex items-center gap-2"><Film size={16} className="rd-accent-text" /> Lances no vídeo</div>
-      <p className="text-xs text-[var(--rd-text-dim)] mb-3">Toque em ▶ pra ver o lance (o vídeo começa {RECUO_LANCE_SEG} s antes).</p>
+      <p className="text-xs text-[var(--rd-text-dim)] mb-3">
+        Toque em ▶ pra ver o lance (o vídeo começa {RECUO_LANCE_SEG} s antes).
+        {idYt && <> O botão <Send size={11} className="inline -mt-0.5" /> manda o link do lance pelo WhatsApp.</>}
+      </p>
 
       {atual && (
         <div className="mb-3">
@@ -96,7 +117,7 @@ export default function LancesVideo({ partida, atletas }: { partida: Partida; at
       ) : (
         <div>
           {lances.map((l) => (
-            <div key={l.eventoId} className="grid grid-cols-[52px_1fr_auto] items-center gap-2 py-2 border-b last:border-b-0 text-sm"
+            <div key={l.eventoId} className={`grid ${idYt ? 'grid-cols-[52px_1fr_auto_auto]' : 'grid-cols-[52px_1fr_auto]'} items-center gap-2 py-2 border-b last:border-b-0 text-sm`}
               style={{ borderColor: 'var(--rd-border)', background: l.eventoId === atual ? 'rgba(212,175,55,.12)' : undefined }}>
               <span className="font-black text-xs rd-accent-text">{formatarTempo(l.videoSeg)}</span>
               <span className="min-w-0 truncate">
@@ -105,6 +126,11 @@ export default function LancesVideo({ partida, atletas }: { partida: Partida; at
                 <span className="text-[var(--rd-text-dim)] text-xs"> · set {l.setNumero}, {l.placarCasa}×{l.placarAdversario}</span>
               </span>
               <button className="rd-btn text-xs !px-2 !py-1" onClick={() => ver(l)}>▶ ver</button>
+              {idYt && (
+                <button className="rd-btn text-xs !px-2 !py-1" onClick={() => void enviar(l)} aria-label="Enviar este lance pelo WhatsApp" title="Enviar pelo WhatsApp">
+                  <Send size={13} />
+                </button>
+              )}
             </div>
           ))}
         </div>
