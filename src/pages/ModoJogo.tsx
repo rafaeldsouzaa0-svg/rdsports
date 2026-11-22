@@ -778,7 +778,9 @@ export default function ModoJogo() {
           </div>
           {fonteVideo ? (
             <>
-              <PlayerVideo ref={playerRef} fonte={fonteVideo} marcas={marcasVideo} />
+              {/* flutuarAoRolar: no celular/tablet, ao descer até os botões
+                  o vídeo vira uma janelinha por cima (21/11/2026). */}
+              <PlayerVideo ref={playerRef} fonte={fonteVideo} marcas={marcasVideo} flutuarAoRolar />
               <p className="text-xs text-[var(--rd-text-dim)] mt-2">
                 O vídeo pausa sozinho quando você começa a marcar um lance, e o lance fica guardado com o minuto do vídeo.
                 {fonteVideo.tipo === 'arquivo' ? ` Arquivo: ${fonteVideo.nome} (fica só neste aparelho).` : ''}

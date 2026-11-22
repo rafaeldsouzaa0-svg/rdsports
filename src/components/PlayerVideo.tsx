@@ -3,7 +3,7 @@
 // 5 s, play/pausa, câmera lenta) e uma barra com um risquinho em cada lance
 // já marcado (verde = ponto nosso, vermelho = deles).
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight, GripHorizontal, Maximize2, Minimize2, X } from 'lucide-react'
 import { formatarTempo, acaoDaTecla, PASSO_QUADRO_SEG } from '../videoJogo'
 
 export type FonteVideo = { tipo: 'youtube'; id: string } | { tipo: 'arquivo'; url: string; nome: string }
@@ -46,7 +46,37 @@ function carregarYouTube(): Promise<YTNamespace> {
 
 const VELOCIDADES = [1, 0.5, 0.25]
 
-export default function PlayerVideo({ fonte, marcas = [], ref }: { fonte: FonteVideo; marcas?: MarcaVideo[]; ref?: React.Ref<ControlePlayer> }) {
+// ---------- Janela flutuante (21/11/2026, só celular e tablet) ----------
+// No scout pelo vídeo, ao descer até os botões de fundamento o vídeo sumia da
+// tela. Com `flutuarAoRolar`, quando o player sai da tela ele vira uma janela
+// pequena por cima, que dá pra arrastar, aumentar e fechar. Só em aparelho de
+// toque (no computador a tela é grande e tem os atalhos de teclado).
+const CHAVE_JANELA = 'rdsports_video_janela'
+type Tamanho = 'p' | 'g'
+interface JanelaSalva { x?: number; y?: number; tamanho?: Tamanho }
+function lerJanela(): JanelaSalva {
+  try { return JSON.parse(localStorage.getItem(CHAVE_JANELA) ?? '{}') as JanelaSalva } catch { return {} }
+}
+function salvarJanela(patch: JanelaSalva) {
+  try { localStorage.setItem(CHAVE_JANELA, JSON.stringify({ ...lerJanela(), ...patch })) } catch { /* sem armazenamento: só não lembra */ }
+}
+function ehAparelhoDeToque(): boolean {
+  try { return window.matchMedia('(pointer: coarse)').matches } catch { return false }
+}
+/** Largura da janela: pequena ~45% da tela (máx. 340 px), grande ~70% (máx. 560 px). */
+export function larguraDaJanela(tamanho: Tamanho, larguraTela: number): number {
+  return Math.round(tamanho === 'g' ? Math.min(larguraTela * 0.7, 560) : Math.min(larguraTela * 0.45, 340))
+}
+/** Mantém a janela inteira dentro da tela. */
+export function prenderNaTela(x: number, y: number, largura: number, altura: number, telaL: number, telaA: number) {
+  const m = 8
+  return {
+    x: Math.min(Math.max(m, x), Math.max(m, telaL - largura - m)),
+    y: Math.min(Math.max(m, y), Math.max(m, telaA - altura - m)),
+  }
+}
+
+export default function PlayerVideo({ fonte, marcas = [], ref, flutuarAoRolar = false }: { fonte: FonteVideo; marcas?: MarcaVideo[]; ref?: React.Ref<ControlePlayer>; flutuarAoRolar?: boolean }) {
   const videoEl = useRef<HTMLVideoElement>(null)
   const ytEl = useRef<HTMLDivElement>(null)
   const yt = useRef<YTPlayer | null>(null)
@@ -156,8 +186,83 @@ export default function PlayerVideo({ fonte, marcas = [], ref }: { fonte: FonteV
 
   useImperativeHandle(ref, () => ({ tempo, pausar, irPara }))
 
+  // ----- Janela flutuante -----
+  const ancora = useRef<HTMLDivElement>(null)
+  const alturaAncora = useRef(0)
+  const [foraDaTela, setForaDaTela] = useState(false)
+  const [fechada, setFechada] = useState(false)
+  const [tamanho, setTamanho] = useState<Tamanho>(() => lerJanela().tamanho ?? 'p')
+  const [telaL, setTelaL] = useState(() => (typeof window === 'undefined' ? 375 : window.innerWidth))
+  const [telaA, setTelaA] = useState(() => (typeof window === 'undefined' ? 700 : window.innerHeight))
+  const podeFlutuar = flutuarAoRolar && ehAparelhoDeToque()
+  const flutuando = podeFlutuar && foraDaTela && !fechada
+  const larguraJanela = larguraDaJanela(tamanho, telaL)
+  // Altura aproximada da janela (barra + vídeo 16:9 + botões), pra não sair da tela.
+  const alturaJanela = 28 + larguraJanela * (9 / 16) + 44
+  const salva = lerJanela()
+  const [posBruta, setPosBruta] = useState(() => ({ x: salva.x ?? telaL - larguraJanela - 12, y: salva.y ?? 12 }))
+  const pos = prenderNaTela(posBruta.x, posBruta.y, larguraJanela, alturaJanela, telaL, telaA)
+
+  useEffect(() => {
+    const aoRedimensionar = () => { setTelaL(window.innerWidth); setTelaA(window.innerHeight) }
+    window.addEventListener('resize', aoRedimensionar)
+    return () => window.removeEventListener('resize', aoRedimensionar)
+  }, [])
+
+  useEffect(() => {
+    if (!podeFlutuar || !ancora.current || typeof IntersectionObserver === 'undefined') return
+    const el = ancora.current
+    const obs = new IntersectionObserver(([entrada]) => {
+      // Guarda a altura do player no lugar dele, pra página não "pular"
+      // quando ele vira janela.
+      if (entrada.isIntersecting) { alturaAncora.current = el.offsetHeight; setFechada(false) }
+      setForaDaTela(!entrada.isIntersecting)
+    }, { threshold: 0 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [podeFlutuar])
+
+  const arrasto = useRef<{ dx: number; dy: number } | null>(null)
+  function comecarArrastar(e: React.PointerEvent<HTMLDivElement>) {
+    arrasto.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  function arrastar(e: React.PointerEvent<HTMLDivElement>) {
+    if (!arrasto.current) return
+    setPosBruta({ x: e.clientX - arrasto.current.dx, y: e.clientY - arrasto.current.dy })
+  }
+  function soltar() {
+    if (!arrasto.current) return
+    arrasto.current = null
+    salvarJanela({ x: pos.x, y: pos.y })
+  }
+
   return (
-    <div>
+    <div ref={ancora} style={flutuando ? { minHeight: alturaAncora.current } : undefined}>
+    <div
+      className={flutuando ? 'rd-video-flutuante' : undefined}
+      style={flutuando ? { left: pos.x, top: pos.y, width: larguraJanela } : undefined}
+    >
+      {/* Barra da janela flutuante (21/11/2026 — só celular/tablet): arrastar,
+          aumentar/diminuir e fechar. Sempre no mesmo lugar da árvore pra o
+          vídeo do YouTube não recarregar quando a janela abre ou fecha. */}
+      <div
+        className={flutuando ? 'flex items-center gap-1 mb-1 select-none' : 'hidden'}
+        style={{ touchAction: 'none' }}
+        onPointerDown={comecarArrastar}
+        onPointerMove={arrastar}
+        onPointerUp={soltar}
+        onPointerCancel={soltar}
+      >
+        <GripHorizontal size={16} className="text-[var(--rd-text-dim)] shrink-0" />
+        <span className="text-[11px] text-[var(--rd-text-dim)] flex-1 truncate">Arraste pra mudar de lugar</span>
+        <button className="rd-btn !p-1" onPointerDown={(e) => e.stopPropagation()} onClick={() => setTamanho((t) => { const n = t === 'p' ? 'g' : 'p'; salvarJanela({ tamanho: n }); return n })} aria-label={tamanho === 'p' ? 'Aumentar a janela do vídeo' : 'Diminuir a janela do vídeo'}>
+          {tamanho === 'p' ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+        </button>
+        <button className="rd-btn !p-1" onPointerDown={(e) => e.stopPropagation()} onClick={() => setFechada(true)} aria-label="Fechar a janela do vídeo (volta quando subir até o vídeo)">
+          <X size={14} />
+        </button>
+      </div>
       <div className="relative rounded-xl overflow-hidden border" style={{ borderColor: 'var(--rd-border)', background: '#000', aspectRatio: '16 / 9' }}>
         {fonte.tipo === 'youtube' ? (
           <div ref={ytEl} className="absolute inset-0 [&>iframe]:w-full [&>iframe]:h-full" />
@@ -184,7 +289,7 @@ export default function PlayerVideo({ fonte, marcas = [], ref }: { fonte: FonteV
 
       {/* Barra com os lances já marcados — toque pra pular pro ponto. */}
       <div
-        className="relative h-7 mt-2 mx-1 cursor-pointer"
+        className={flutuando ? 'hidden' : 'relative h-7 mt-2 mx-1 cursor-pointer'}
         onClick={(e) => {
           if (!duracao) return
           const r = e.currentTarget.getBoundingClientRect()
@@ -199,23 +304,24 @@ export default function PlayerVideo({ fonte, marcas = [], ref }: { fonte: FonteV
         {duracao > 0 && <div className="absolute top-1 w-4 h-4 rounded-full bg-white" style={{ left: `calc(${(atual / duracao) * 100}% - 8px)` }} />}
       </div>
 
-      <div className="grid grid-cols-4 gap-2 mt-1">
-        <button className="rd-btn text-sm" onClick={() => irPara(tempo() - 5)}><Rewind size={16} /> 5s</button>
-        <button className="rd-btn rd-btn-gold text-sm" onClick={() => (tocando ? pausar() : tocar())} aria-label={tocando ? 'Pausar' : 'Tocar'}>
-          {tocando ? <Pause size={18} /> : <Play size={18} />}
+      <div className={`grid grid-cols-4 ${flutuando ? 'gap-1 mt-1' : 'gap-2 mt-1'}`}>
+        <button className={`rd-btn ${flutuando ? 'text-xs !px-1 !py-1.5' : 'text-sm'}`} onClick={() => irPara(tempo() - 5)}><Rewind size={flutuando ? 14 : 16} /> 5s</button>
+        <button className={`rd-btn rd-btn-gold ${flutuando ? 'text-xs !px-1 !py-1.5' : 'text-sm'}`} onClick={() => (tocando ? pausar() : tocar())} aria-label={tocando ? 'Pausar' : 'Tocar'}>
+          {tocando ? <Pause size={flutuando ? 16 : 18} /> : <Play size={flutuando ? 16 : 18} />}
         </button>
-        <button className="rd-btn text-sm" onClick={() => irPara(tempo() + 5)}>5s <FastForward size={16} /></button>
-        <button className="rd-btn text-sm" onClick={trocarVelocidade}>{String(velocidade).replace('.', ',')}×</button>
+        <button className={`rd-btn ${flutuando ? 'text-xs !px-1 !py-1.5' : 'text-sm'}`} onClick={() => irPara(tempo() + 5)}>5s <FastForward size={flutuando ? 14 : 16} /></button>
+        <button className={`rd-btn ${flutuando ? 'text-xs !px-1 !py-1.5' : 'text-sm'}`} onClick={trocarVelocidade}>{String(velocidade).replace('.', ',')}×</button>
       </div>
 
       {/* Quadro a quadro: só aparece com o vídeo pausado, pra não ocupar
           espaço enquanto o jogo roda. */}
       {!tocando && duracao > 0 && (
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <button className="rd-btn text-xs" onClick={() => quadro(-1)} aria-label="Voltar um quadro"><ChevronLeft size={14} /> Quadro</button>
-          <button className="rd-btn text-xs" onClick={() => quadro(1)} aria-label="Avançar um quadro">Quadro <ChevronRight size={14} /></button>
+        <div className={`grid grid-cols-2 ${flutuando ? 'gap-1 mt-1' : 'gap-2 mt-2'}`}>
+          <button className={`rd-btn text-xs ${flutuando ? '!py-1' : ''}`} onClick={() => quadro(-1)} aria-label="Voltar um quadro"><ChevronLeft size={14} /> Quadro</button>
+          <button className={`rd-btn text-xs ${flutuando ? '!py-1' : ''}`} onClick={() => quadro(1)} aria-label="Avançar um quadro">Quadro <ChevronRight size={14} /></button>
         </div>
       )}
+    </div>
     </div>
   )
 }
