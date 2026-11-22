@@ -271,6 +271,11 @@ export interface SetPartida {
 
 export interface Partida {
   id: string
+  /** Mudou NESTE aparelho e ainda não foi confirmada na nuvem (21/11/2026).
+   *  Enquanto estiver marcada, o que vem da nuvem nunca passa por cima dela
+   *  (era assim que pontos marcados no scout "voltavam"). Só existe no
+   *  aparelho — não vai pra nuvem. */
+  pendenteEnvio?: boolean
   tipo: 'JOGO' | 'TREINO'
   turmaId: string
   adversarioId?: string

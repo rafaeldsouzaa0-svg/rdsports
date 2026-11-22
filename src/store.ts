@@ -33,6 +33,18 @@ export function maisRecente(dataA: string | undefined, dataB: string | undefined
   return dataA > dataB ? 'a' : 'b'
 }
 
+/** Igual ao mesclarPorId, mas partida que mudou neste aparelho e ainda não foi
+ *  enviada (`pendenteEnvio`) NUNCA é trocada pela da nuvem (21/11/2026 — bug
+ *  real: no scout ao vivo, o envio anterior deixava a partida da nuvem com
+ *  `updated_at` mais novo; no próximo ciclo, a cópia da nuvem — sem os pontos
+ *  que acabaram de ser marcados — ganhava e os pontos "voltavam"). */
+export function mesclarPartidas(local: Partida[], daNuvem: Partida[]): Partida[] {
+  const protegidas = new Map(local.filter((p) => p.pendenteEnvio).map((p) => [p.id, p]))
+  if (protegidas.size === 0) return mesclarPorId(local, daNuvem)
+  const nuvemSemProtegidas = daNuvem.filter((p) => !protegidas.has(p.id))
+  return mesclarPorId(local, nuvemSemProtegidas)
+}
+
 export function mesclarPorId<T extends { id: string; updatedAt?: string; createdAt?: string }>(local: T[], daNuvem: T[]): T[] {
   const mapaNuvem = new Map<string, T>()
   for (const item of daNuvem) mapaNuvem.set(item.id, item)
@@ -138,6 +150,9 @@ interface RDState {
   restaurarExercicioBiblioteca: (id: string) => void
 
   mesclarDaNuvem: (dados: DadosNuvem) => void
+  /** Depois de um envio com sucesso: tira a marca `pendenteEnvio` das
+   *  partidas enviadas (só das que não mudaram durante o envio). */
+  marcarPartidasEnviadas: (enviadas: Partida[]) => void
   restaurarBackupCompleto: (dados: BackupDados) => void
 }
 
@@ -282,17 +297,29 @@ export const useStore = create<RDState>()(
           createdAt: nowISO(),
           ...extra,
         }
-        setState((s) => ({ partidas: [...s.partidas, partida] }))
+        setState((s) => ({ partidas: [...s.partidas, { ...partida, pendenteEnvio: true }] }))
         return partida
       },
+      // `pendenteEnvio` (21/11/2026): toda mudança local numa partida fica
+      // protegida contra a cópia da nuvem até ser enviada com sucesso — ver
+      // mesclarPartidas e marcarPartidasEnviadas.
       atualizarPartida: (id, patch) => {
-        setState((s) => ({ partidas: s.partidas.map((p) => (p.id === id ? { ...p, ...patch } : p)) }))
+        setState((s) => ({ partidas: s.partidas.map((p) => (p.id === id ? { ...p, ...patch, pendenteEnvio: true } : p)) }))
       },
       excluirPartida: (id) => {
-        setState((s) => ({ partidas: s.partidas.map((p) => (p.id === id ? { ...p, deletedAt: carimbo() } : p)) }))
+        setState((s) => ({ partidas: s.partidas.map((p) => (p.id === id ? { ...p, deletedAt: carimbo(), pendenteEnvio: true } : p)) }))
       },
       restaurarPartida: (id) => {
-        setState((s) => ({ partidas: s.partidas.map((p) => (p.id === id ? { ...p, deletedAt: undefined } : p)) }))
+        setState((s) => ({ partidas: s.partidas.map((p) => (p.id === id ? { ...p, deletedAt: undefined, pendenteEnvio: true } : p)) }))
+      },
+      marcarPartidasEnviadas: (enviadas) => {
+        // Só limpa a marca de quem não mudou DURANTE o envio (mesmo objeto que
+        // foi enviado); o que mudou nesse meio tempo continua pendente.
+        const foram = new Set(enviadas)
+        setState((s) => {
+          if (!s.partidas.some((p) => p.pendenteEnvio && foram.has(p))) return s
+          return { partidas: s.partidas.map((p) => (p.pendenteEnvio && foram.has(p) ? { ...p, pendenteEnvio: false } : p)) }
+        })
       },
 
       addHorarioTreino: (turmaId, diaSemana, horario, local) => {
@@ -438,7 +465,7 @@ export const useStore = create<RDState>()(
           campeonatos: mesclarPorId(s.campeonatos, dados.campeonatos),
           // repararPartidas: conserta também a cópia do APARELHO (que pode
           // ganhar da nuvem no mesclarPorId) — ver src/repararScout.ts.
-          partidas: repararPartidas(mesclarPorId(s.partidas, dados.partidas)),
+          partidas: repararPartidas(mesclarPartidas(s.partidas, dados.partidas)),
           jogosAgendados: mesclarPorId(s.jogosAgendados, dados.jogosAgendados),
           avaliacoes: mesclarPorId(s.avaliacoes, dados.avaliacoes),
           sessoesTreino: mesclarPorId(s.sessoesTreino, dados.sessoesTreino),
