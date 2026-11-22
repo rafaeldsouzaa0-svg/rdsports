@@ -3,8 +3,8 @@
 // 5 s, play/pausa, câmera lenta) e uma barra com um risquinho em cada lance
 // já marcado (verde = ponto nosso, vermelho = deles).
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Play, Pause, Rewind, FastForward } from 'lucide-react'
-import { formatarTempo } from '../videoJogo'
+import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight } from 'lucide-react'
+import { formatarTempo, acaoDaTecla, PASSO_QUADRO_SEG } from '../videoJogo'
 
 export type FonteVideo = { tipo: 'youtube'; id: string } | { tipo: 'arquivo'; url: string; nome: string }
 
@@ -111,12 +111,48 @@ export default function PlayerVideo({ fonte, marcas = [], ref }: { fonte: FonteV
     setAtual(s)
     if (tocarDepois) tocar()
   }
-  function trocarVelocidade() {
-    const v = VELOCIDADES[(VELOCIDADES.indexOf(velocidade) + 1) % VELOCIDADES.length]
+  function definirVelocidade(v: number) {
     setVelocidade(v)
     if (fonte.tipo === 'youtube') { try { yt.current?.setPlaybackRate(v) } catch { /* ainda carregando */ } }
     else if (videoEl.current) videoEl.current.playbackRate = v
   }
+  function trocarVelocidade() {
+    definirVelocidade(VELOCIDADES[(VELOCIDADES.indexOf(velocidade) + 1) % VELOCIDADES.length])
+  }
+  /** Quadro a quadro (21/11/2026): pausa e anda ~1 quadro. No vídeo do
+   *  aparelho é preciso; no YouTube o próprio YouTube arredonda, então anda
+   *  um pouco mais (passo maior pra sempre mexer). */
+  function quadro(direcao: 1 | -1) {
+    pausar()
+    const passo = fonte.tipo === 'youtube' ? 0.1 : PASSO_QUADRO_SEG
+    irPara(tempo() + direcao * passo)
+  }
+
+  // Atalhos de teclado no computador (21/11/2026). Não atrapalham quem está
+  // digitando (campo de texto, lista etc.) nem atalhos do navegador.
+  const acoes = useRef({ tocarOuPausar: () => {}, irPara, tempo, quadro, definirVelocidade })
+  useEffect(() => {
+    acoes.current = { tocarOuPausar: () => (tocando ? pausar() : tocar()), irPara, tempo, quadro, definirVelocidade }
+  })
+  useEffect(() => {
+    function aoTeclar(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const alvo = e.target as HTMLElement | null
+      if (alvo && (alvo.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName))) return
+      const acao = acaoDaTecla(e.key)
+      if (!acao) return
+      e.preventDefault()
+      const a = acoes.current
+      if (acao === 'tocar_pausar') a.tocarOuPausar()
+      else if (acao === 'voltar') a.irPara(a.tempo() - 5)
+      else if (acao === 'avancar') a.irPara(a.tempo() + 5)
+      else if (acao === 'quadro_tras') a.quadro(-1)
+      else if (acao === 'quadro_frente') a.quadro(1)
+      else a.definirVelocidade(acao === 'velocidade_1' ? 1 : acao === 'velocidade_05' ? 0.5 : 0.25)
+    }
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  }, [])
 
   useImperativeHandle(ref, () => ({ tempo, pausar, irPara }))
 
@@ -171,6 +207,15 @@ export default function PlayerVideo({ fonte, marcas = [], ref }: { fonte: FonteV
         <button className="rd-btn text-sm" onClick={() => irPara(tempo() + 5)}>5s <FastForward size={16} /></button>
         <button className="rd-btn text-sm" onClick={trocarVelocidade}>{String(velocidade).replace('.', ',')}×</button>
       </div>
+
+      {/* Quadro a quadro: só aparece com o vídeo pausado, pra não ocupar
+          espaço enquanto o jogo roda. */}
+      {!tocando && duracao > 0 && (
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <button className="rd-btn text-xs" onClick={() => quadro(-1)} aria-label="Voltar um quadro"><ChevronLeft size={14} /> Quadro</button>
+          <button className="rd-btn text-xs" onClick={() => quadro(1)} aria-label="Avançar um quadro">Quadro <ChevronRight size={14} /></button>
+        </div>
+      )}
     </div>
   )
 }
