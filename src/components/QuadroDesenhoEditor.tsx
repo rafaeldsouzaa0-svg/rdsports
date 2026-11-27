@@ -5,9 +5,10 @@
 // Henrique: desenho estático primeiro) — o resultado sai exatamente assim no
 // HTML/PDF exportado (ver `treinoHtml.ts`).
 import { useEffect, useRef, useState } from 'react'
-import { X, Trash2 } from 'lucide-react'
+import { X, Trash2, Minus, Plus } from 'lucide-react'
 import type { ElementoDesenho, ElementoDesenhoTipo, LinhaDesenho, LinhaDesenhoTipo, QuadroDesenho, QuadroDesenhoPasso } from '../types'
 import { uid } from '../utils'
+import { cantosDaZona, redimensionarPeloCanto, ajustarTamanho, tamanhoEmMetros, type CantoZona, type Zona } from '../zonaDesenho'
 
 const FERRAMENTAS_ELEMENTO: { tipo: ElementoDesenhoTipo; label: string; cor: string }[] = [
   { tipo: 'atleta_azul', label: 'Azul', cor: '#2563eb' },
@@ -693,6 +694,8 @@ export function QuadroDesenhoEditor({ titulo, desenhoInicial, onSalvar, onFechar
   const [linhaSelecionadaId, setLinhaSelecionadaId] = useState<string | null>(null)
   const [arrastandoId, setArrastandoId] = useState<string | null>(null)
   const [arrastandoControleDe, setArrastandoControleDe] = useState<string | null>(null)
+  // Canto da Zona sendo puxado com o dedo (pedido 26/11/2026).
+  const [redimensionando, setRedimensionando] = useState<{ id: string; canto: CantoZona } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
   const elTipos: ElementoDesenhoTipo[] = FERRAMENTAS_ELEMENTO.map((f) => f.tipo)
@@ -711,7 +714,7 @@ export function QuadroDesenhoEditor({ titulo, desenhoInicial, onSalvar, onFechar
   }
 
   function cliqueNaQuadra(e: React.MouseEvent) {
-    if (arrastandoId || arrastandoControleDe) return
+    if (arrastandoId || arrastandoControleDe || redimensionando) return
     const p = pontoDoEvento(e)
     if (!p) return
 
@@ -813,6 +816,31 @@ export function QuadroDesenhoEditor({ titulo, desenhoInicial, onSalvar, onFechar
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arrastandoControleDe, meiaQuadra])
+
+  useEffect(() => {
+    if (!redimensionando) return
+    function mover(e: PointerEvent) {
+      const p = pontoDoEvento(e)
+      if (!p || !redimensionando) return
+      setElementos((ls) => ls.map((el) => (el.id === redimensionando.id ? { ...el, ...redimensionarPeloCanto(zonaDe(el), redimensionando.canto, p) } : el)))
+    }
+    function soltar() { setRedimensionando(null) }
+    window.addEventListener('pointermove', mover)
+    window.addEventListener('pointerup', soltar)
+    return () => {
+      window.removeEventListener('pointermove', mover)
+      window.removeEventListener('pointerup', soltar)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redimensionando, meiaQuadra])
+
+  function zonaDe(el: ElementoDesenho): Zona {
+    return { x: el.x, y: el.y, largura: el.largura ?? ZONA_LARGURA_PADRAO, altura: el.altura ?? ZONA_ALTURA_PADRAO }
+  }
+
+  function ajustarZona(id: string, lado: 'largura' | 'altura', passos: number) {
+    setElementos((ls) => ls.map((el) => (el.id === id ? { ...el, ...ajustarTamanho(zonaDe(el), lado, passos) } : el)))
+  }
 
   const selecionado = elementos.find((el) => el.id === selecionadoId)
   const linhaSelecionada = linhas.find((l) => l.id === linhaSelecionadaId)
@@ -1003,6 +1031,24 @@ export function QuadroDesenhoEditor({ titulo, desenhoInicial, onSalvar, onFechar
                   <ElementoSvg el={el} selecionado={selecionadoId === el.id} estiloJogador={estiloJogador} />
                 </g>
               ))}
+
+              {/* Cantos pra puxar e mudar o tamanho da Zona selecionada
+                  (pedido 26/11/2026). Área de toque grande e invisível em
+                  volta de cada bolinha, pra acertar com o dedo no iPad. */}
+              {selecionado && selecionado.tipo === 'zona' && ferramenta !== 'apagar' && (
+                Object.entries(cantosDaZona(zonaDe(selecionado))) as [CantoZona, { x: number; y: number }][]
+              ).map(([canto, c]) => (
+                <g
+                  key={canto}
+                  onPointerDown={(e) => { e.stopPropagation(); setRedimensionando({ id: selecionado.id, canto }) }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ cursor: canto === 'no' || canto === 'se' ? 'nwse-resize' : 'nesw-resize' }}
+                  aria-label="Puxar pra mudar o tamanho da zona"
+                >
+                  <circle cx={c.x * 3} cy={c.y * 2} r={13} fill="transparent" />
+                  <circle cx={c.x * 3} cy={c.y * 2} r={5} fill="#d4af37" stroke="#1a1300" strokeWidth={1.5} />
+                </g>
+              ))}
             </svg>
 
             {linhaSelecionada && (linhaSelecionada.cx != null || linhaSelecionada.cy != null) && (
@@ -1023,30 +1069,46 @@ export function QuadroDesenhoEditor({ titulo, desenhoInicial, onSalvar, onFechar
           </>
         )}
 
-        {vista === 'planta' && selecionado && (selecionado.tipo === 'atleta_azul' || selecionado.tipo === 'atleta_amarelo' || selecionado.tipo === 'curinga') && (
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-xs font-semibold">Número da camisa:</span>
-            <input
-              className="rd-input text-xs w-20" value={selecionado.numero ?? ''}
-              onChange={(e) => setElementos((ls) => ls.map((el) => (el.id === selecionado.id ? { ...el, numero: e.target.value } : el)))}
-            />
-            <button className="rd-btn !p-1.5 rd-btn-danger" onClick={() => { setElementos((ls) => ls.filter((el) => el.id !== selecionado.id)); setSelecionadoId(null) }}><Trash2 size={14} /></button>
-          </div>
-        )}
+        {/* Espaço fixo pras opções da peça selecionada (26/11/2026): antes o
+            painel aparecia do nada ao tocar na peça, a janela se recentralizava
+            e a quadra pulava pra cima no meio do toque. */}
+        {vista === 'planta' && (
+          <div className="mt-2 min-h-[148px]">
+            {!selecionado && <p className="text-[11px] text-[var(--rd-text-dim)] pt-1">Toque numa peça pra ver as opções dela (na Zona: mudar o tamanho).</p>}
+          {vista === 'planta' && selecionado && (selecionado.tipo === 'atleta_azul' || selecionado.tipo === 'atleta_amarelo' || selecionado.tipo === 'curinga') && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold">Número da camisa:</span>
+              <input
+                className="rd-input text-xs w-20" value={selecionado.numero ?? ''}
+                onChange={(e) => setElementos((ls) => ls.map((el) => (el.id === selecionado.id ? { ...el, numero: e.target.value } : el)))}
+              />
+              <button className="rd-btn !p-1.5 rd-btn-danger" onClick={() => { setElementos((ls) => ls.filter((el) => el.id !== selecionado.id)); setSelecionadoId(null) }}><Trash2 size={14} /></button>
+            </div>
+          )}
 
-        {vista === 'planta' && selecionado && selecionado.tipo === 'zona' && (
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-xs font-semibold">Tamanho da zona:</span>
-            <input
-              type="number" min={5} max={100} className="rd-input text-xs w-16" value={selecionado.largura ?? ZONA_LARGURA_PADRAO}
-              onChange={(e) => setElementos((ls) => ls.map((el) => (el.id === selecionado.id ? { ...el, largura: Number(e.target.value) || ZONA_LARGURA_PADRAO } : el)))}
-            />
-            <span className="text-[11px] text-[var(--rd-text-dim)]">×</span>
-            <input
-              type="number" min={5} max={100} className="rd-input text-xs w-16" value={selecionado.altura ?? ZONA_ALTURA_PADRAO}
-              onChange={(e) => setElementos((ls) => ls.map((el) => (el.id === selecionado.id ? { ...el, altura: Number(e.target.value) || ZONA_ALTURA_PADRAO } : el)))}
-            />
-            <button className="rd-btn !p-1.5 rd-btn-danger" onClick={() => { setElementos((ls) => ls.filter((el) => el.id !== selecionado.id)); setSelecionadoId(null) }}><Trash2 size={14} /></button>
+          {vista === 'planta' && selecionado && selecionado.tipo === 'zona' && (() => {
+            const z = zonaDe(selecionado)
+            const passo = (lado: 'largura' | 'altura', rotulo: string) => (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold w-16">{rotulo}</span>
+                <button type="button" className="rd-btn !p-0 w-11 h-11 justify-center" aria-label={`Diminuir ${rotulo.toLowerCase()} da zona`} disabled={z[lado] <= 5} onClick={() => ajustarZona(selecionado.id, lado, -1)}><Minus size={16} /></button>
+                <button type="button" className="rd-btn !p-0 w-11 h-11 justify-center" aria-label={`Aumentar ${rotulo.toLowerCase()} da zona`} disabled={z[lado] >= 100} onClick={() => ajustarZona(selecionado.id, lado, 1)}><Plus size={16} /></button>
+              </div>
+            )
+            return (
+              <div className="rounded-xl p-3" style={{ border: '1px solid var(--rd-border)' }}>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-bold">Tamanho da zona <span className="font-normal text-[var(--rd-text-dim)]">· {tamanhoEmMetros(z)}</span></span>
+                  <button className="rd-btn !p-2 rd-btn-danger" aria-label="Apagar zona" onClick={() => { setElementos((ls) => ls.filter((el) => el.id !== selecionado.id)); setSelecionadoId(null) }}><Trash2 size={16} /></button>
+                </div>
+                <div className="flex gap-4 flex-wrap">
+                  {passo('largura', 'Largura')}
+                  {passo('altura', 'Altura')}
+                </div>
+                <p className="text-[11px] text-[var(--rd-text-dim)] mt-2">Ou puxe as bolinhas amarelas nos cantos da zona.</p>
+              </div>
+            )
+          })()}
           </div>
         )}
 
