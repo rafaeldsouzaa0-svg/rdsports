@@ -10,6 +10,7 @@
 // - Bola de graça, Bola de 2ª e Não deslocou não têm resultado (só acontecem).
 // - Adversário: ponto deles (ataque, saque, bloqueio, largada/bola de 2ª) ou
 //   erro deles (ataque, saque, recepção, largada que não funcionou).
+import { FUNDAMENTOS_COM_ZONA } from './zonas'
 import type { FundamentoScout, ResultadoEvento } from './types'
 
 export type CampoFaltando = 'fundamento' | 'atleta' | 'resultado'
@@ -24,6 +25,9 @@ export type ComandoVoz =
     resultado?: ResultadoEvento
     atletaId?: string
     numeroAdversario?: string
+    /** Zona pra onde foi o ataque/saque (1 a 9), se foi falada. Opcional:
+     *  nunca entra em `faltando`. */
+    zona?: number
     /** O que ainda falta pra marcar — a tela pergunta com botões. Vazio = já dá pra marcar. */
     faltando: CampoFaltando[]
   }
@@ -99,6 +103,14 @@ export function resultadosPossiveis(f: FundamentoScout): ResultadoEvento[] {
 function acharFundamento(frase: string): FundamentoScout | undefined {
   for (const { f, palavras } of FUNDAMENTOS_VOZ) if (temPalavra(frase, palavras)) return f
   return undefined
+}
+
+/** Zona falada (pedido 27/11/2026): "zona 4", "na 4", "pra 9", "para
+ *  sete" (o número por extenso já virou algarismo). Só de 1 a 9; "camisa 7"
+ *  continua sendo a camisa da atleta. */
+function acharZona(fraseNum: string): number | undefined {
+  const m = fraseNum.match(/(?:^| )(?:zona|na|no|pra|pro|para) ([1-9])(?= |$)/)
+  return m ? Number(m[1]) : undefined
 }
 
 function acharResultado(frase: string, f: FundamentoScout | undefined): ResultadoEvento | undefined {
@@ -211,6 +223,7 @@ const TROCAS_CONHECIDAS: Record<string, string> = {
   levantament: 'levantamento', levantamentos: 'levantamento',
   erros: 'erro', erru: 'erro', hero: 'erro', ero: 'erro',
   desfas: 'desfaz', desfazendo: 'desfaz',
+  sona: 'zona', zonas: 'zona', zone: 'zona', zonar: 'zona',
 }
 
 const VOCABULARIO_SCOUT = [
@@ -281,11 +294,16 @@ export function interpretarFala(texto: string, ctx: ContextoVoz): ComandoVoz {
   else resultado = acharResultado(fraseNum, fundamento)
   if (fundamento && resultado && !SEM_RESULTADO.includes(fundamento) && !resultadosPossiveis(fundamento).includes(resultado)) resultado = undefined
 
+  // Zona só vale no ataque e no saque (os mesmos da quadrinha). Sem
+  // fundamento ainda, guarda: a tela pode perguntar o fundamento depois.
+  const zonaFalada = acharZona(fraseNum)
+  const zona = zonaFalada && (!fundamento || FUNDAMENTOS_COM_ZONA.includes(fundamento)) ? zonaFalada : undefined
+
   const faltando: CampoFaltando[] = []
   if (!fundamento) faltando.push('fundamento')
   if (!atletaId) faltando.push('atleta')
   if (!resultado) faltando.push('resultado')
-  return { tipo: 'jogada', lado: 'CASA', fundamento, resultado, atletaId, faltando }
+  return { tipo: 'jogada', lado: 'CASA', fundamento, resultado, atletaId, ...(zona ? { zona } : {}), faltando }
 }
 
 const LABEL_RESULTADO_VOZ: Record<ResultadoEvento, string> = {
@@ -299,7 +317,7 @@ const LABEL_FUNDAMENTO_VOZ: Record<FundamentoScout, string> = {
 
 /** Frase curta que o celular fala de volta pra confirmar ("Ataque Marina, ponto"). */
 export function fraseConfirmacao(
-  c: { lado: 'CASA' | 'ADVERSARIO'; fundamento: FundamentoScout; resultado: ResultadoEvento; numeroAdversario?: string },
+  c: { lado: 'CASA' | 'ADVERSARIO'; fundamento: FundamentoScout; resultado: ResultadoEvento; numeroAdversario?: string; zona?: number },
   nomeAtleta?: string,
   /** true = nome completo (na tela); false = só o primeiro nome (falado). */
   nomeCompleto = false,
@@ -312,7 +330,8 @@ export function fraseConfirmacao(
   }
   const nome = nomeAtleta ? ` ${nomeCompleto ? nomeAtleta : nomeAtleta.split(' ')[0]}` : ''
   if (SEM_RESULTADO.includes(c.fundamento)) return `${f[0].toUpperCase()}${f.slice(1)}${nome}`
-  return `${f[0].toUpperCase()}${f.slice(1)}${nome}, ${LABEL_RESULTADO_VOZ[c.resultado]}`
+  const zona = c.zona && FUNDAMENTOS_COM_ZONA.includes(c.fundamento) ? `, zona ${c.zona}` : ''
+  return `${f[0].toUpperCase()}${f.slice(1)}${nome}, ${LABEL_RESULTADO_VOZ[c.resultado]}${zona}`
 }
 
 export { LABEL_RESULTADO_VOZ, LABEL_FUNDAMENTO_VOZ }

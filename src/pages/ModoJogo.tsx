@@ -426,6 +426,7 @@ export default function ModoJogo() {
     for (const m of ms) {
       if (setEstaFechado(novoSet, partida!)) break
       novoSet = registrarEventoTime(novoSet, m.lado, m.fundamento, m.resultado, m.lado === 'CASA' ? m.atletaId : undefined, m.numeroAdversario)
+      if (m.zona) novoSet = carimbarZona(novoSet, String(m.zona))
       if (videoAberto) novoSet = carimbarVideo(novoSet, tempoDoLance.current)
       marcadas += 1
     }

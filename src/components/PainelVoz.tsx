@@ -3,6 +3,7 @@
 // fundamento). Toca no microfone, fala a jogada, e:
 // - se deu pra entender tudo, marca na hora e fala a confirmação;
 // - se faltou algo (quem foi, o resultado…), pergunta com botões.
+import { FUNDAMENTOS_COM_ZONA } from '../zonas'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, Undo2, Volume2, VolumeX, Keyboard } from 'lucide-react'
 import {
@@ -18,6 +19,8 @@ export interface MarcacaoVoz {
   resultado: ResultadoEvento
   atletaId?: string
   numeroAdversario?: string
+  /** Zona falada (1 a 9), só no ataque/saque. */
+  zona?: number
 }
 
 /** Preenche o que faltava numa jogada e recalcula o que ainda falta. */
@@ -35,7 +38,10 @@ function completarJogada(base: Jogada, patch: Partial<Jogada>, sacadoraId?: stri
 
 const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
-const paraMarcacao = (j: Jogada): MarcacaoVoz => ({ lado: j.lado, fundamento: j.fundamento!, resultado: j.resultado!, atletaId: j.atletaId, numeroAdversario: j.numeroAdversario })
+const paraMarcacao = (j: Jogada): MarcacaoVoz => ({
+  lado: j.lado, fundamento: j.fundamento!, resultado: j.resultado!, atletaId: j.atletaId, numeroAdversario: j.numeroAdversario,
+  ...(j.zona && j.lado === 'CASA' && FUNDAMENTOS_COM_ZONA.includes(j.fundamento!) ? { zona: j.zona } : {}),
+})
 
 const FUNDAMENTOS_CASA: FundamentoScout[] = ['saque', 'recepcao', 'levantamento', 'ataque', 'bloqueio', 'defesa', 'bola_de_graca', 'bola_de_segunda', 'nao_deslocou']
 const ADV_PONTO: FundamentoScout[] = ['ataque', 'saque', 'bloqueio', 'bola_de_segunda']
@@ -43,6 +49,8 @@ const ADV_ERRO: FundamentoScout[] = ['ataque', 'saque', 'recepcao', 'nao_desloco
 
 const EXEMPLOS = [
   ['"Ataque Marina ponto"', 'ataque certo'],
+  ['"Ataque Marina ponto zona 4"', 'zona é opcional (1 a 9)'],
+  ['"Saque em jogo na 1"', 'zona do saque: "zona 1", "na 1"'],
   ['"Saque erro"', 'quem saca já é conhecida'],
   ['"Recepção Sofia boa"', 'boa / média / erro'],
   ['"Bloqueio Carol ponto"', ''],
@@ -275,6 +283,9 @@ export default function PainelVoz({
               <div key={i} className="flex items-center justify-between gap-2 py-2 border-b last:border-b-0 text-sm" style={{ borderColor: 'var(--rd-border)', background: i === idxIncompleta ? 'rgba(246,185,59,.10)' : undefined }}>
                 <span className="min-w-0">
                   <b>{i + 1}.</b> {j.fundamento ? maiuscula(LABEL_FUNDAMENTO_VOZ[j.fundamento]) : '❓ fundamento?'} · {nome} · <b style={{ color: corRes }}>{maiuscula(res)}</b>
+                  {j.zona && j.lado === 'CASA' && j.fundamento && FUNDAMENTOS_COM_ZONA.includes(j.fundamento) && (
+                    <span className="ml-1 px-1.5 rounded text-[11px] font-black" style={{ background: '#0b0a08', color: '#d4af37', border: '1px solid #d4af37' }}>zona {j.zona}</span>
+                  )}
                 </span>
                 <button className="text-[var(--rd-text-dim)] shrink-0 px-2" aria-label="Tirar esta jogada" onClick={() => setLista(lista.length > 1 ? lista.filter((_, k) => k !== i) : null)}>✕</button>
               </div>
