@@ -17,6 +17,14 @@ import { formatDate } from '../utils'
 
 const ROMANO = ['I', 'II', 'III', 'IV', 'V', 'VI']
 
+/** Rótulo curto pra caber em meia tela: "Ponto deles: bloqueio" → "bloqueio deles". */
+function rotuloCurto(label: string): string {
+  if (label.startsWith('Ponto deles: ')) return `${label.slice(13)} deles`
+  if (label.startsWith('Nosso erro: ')) return `erro de ${label.slice(12)}`
+  if (label === 'Nosso ataque bloqueado') return 'ataque bloqueado'
+  return label
+}
+
 function ListaJogos() {
   const { turmas } = useStore()
   const [jogos, setJogos] = useState<JogoEmAndamento[] | null>(null)
@@ -125,9 +133,9 @@ function PainelAoVivo({ partida, recorte }: { partida: Partida; recorte: 'set' |
             {[{ t: 'Nossos', itens: origem.ganhos, cor: 'var(--rd-positivo)' }, { t: 'Deles', itens: origem.perdidos, cor: 'var(--rd-erro)' }].map((g) => {
               const max = Math.max(1, ...g.itens.map((i) => i.valor))
               return (
-                <div key={g.t} className="grid gap-1.5">
+                <div key={g.t} className="grid gap-1.5 content-start">
                   <div className="text-xs font-bold">{g.t}</div>
-                  {g.itens.slice(0, 4).map((i) => <BarraHorizontal key={i.chave} label={i.label.replace('Nosso erro: ', 'erro ').replace('Ponto deles: ', '')} valor={i.valor} max={max} cor={g.cor} direita={i.valor} />)}
+                  {g.itens.slice(0, 4).map((i) => <BarraHorizontal key={i.chave} label={rotuloCurto(i.label)} valor={i.valor} max={max} cor={g.cor} direita={i.valor} />)}
                 </div>
               )
             })}
