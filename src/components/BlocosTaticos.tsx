@@ -60,7 +60,7 @@ export function BlocoAtaquePorFase({ sets }: { sets: SetPartida[] }) {
   if (k1.ataque.total + k2.ataque.total === 0) return null
   const caixa = (titulo: string, sub: string, f: typeof k1) => (
     <Kpi label={titulo} valor={f.ataque.total ? `${f.ataque.eficiencia}%` : '—'} cor={f.ataque.total ? corEf(f.ataque.eficiencia) : undefined}
-      sub={<>{sub}<br />{f.ataque.total ? `${f.killPct}% ponto · ${f.erroPct}% erro · ${f.ataque.total} ataques` : 'sem ataques'}</>} />
+      sub={<>{sub}<br />{f.ataque.total ? `${f.killPct}% ponto · ${f.erroPct}% erro${f.bloqueados ? ` (${f.bloqueadoPct}% bloqueado)` : ''} · ${f.ataque.total} ataques` : 'sem ataques'}</>} />
   )
   return (
     <Secao titulo="Side-out × contra-ataque" icon={<Swords size={16} />}

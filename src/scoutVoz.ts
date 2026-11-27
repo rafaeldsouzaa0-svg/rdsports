@@ -11,6 +11,7 @@
 // - Adversário: ponto deles (ataque, saque, bloqueio, largada/bola de 2ª) ou
 //   erro deles (ataque, saque, recepção, largada que não funcionou).
 import { FUNDAMENTOS_COM_ZONA } from './zonas'
+import { TIPO_BLOQUEADO } from './bloqueio'
 import type { FundamentoScout, ResultadoEvento } from './types'
 
 export type CampoFaltando = 'fundamento' | 'atleta' | 'resultado'
@@ -28,6 +29,8 @@ export type ComandoVoz =
     /** Zona pra onde foi o ataque/saque (1 a 9), se foi falada. Opcional:
      *  nunca entra em `faltando`. */
     zona?: number
+    /** Detalhe do erro: 'BLOQUEADO' quando o ataque parou no bloqueio. */
+    tipoErro?: string
     /** O que ainda falta pra marcar — a tela pergunta com botões. Vazio = já dá pra marcar. */
     faltando: CampoFaltando[]
   }
@@ -286,13 +289,19 @@ export function interpretarFala(texto: string, ctx: ContextoVoz): ComandoVoz {
     return { tipo: 'jogada', lado: 'ADVERSARIO', fundamento, resultado, numeroAdversario: numero, faltando }
   }
 
-  const fundamento = acharFundamento(fraseNum)
+  // "Duda foi bloqueada", "ataque da Duda bloqueado" (27/11/2026): ataque
+  // com erro e detalhe BLOQUEADO. Sem outro fundamento falado, é ataque.
+  const bloqueado = temPalavra(fraseNum, ['bloqueada', 'bloqueado', 'bloquearam', 'levou bloqueio', 'tomou bloqueio'])
+  let fundamento = acharFundamento(fraseNum)
+  if (bloqueado && (!fundamento || fundamento === 'bloqueio')) fundamento = 'ataque'
   let atletaId = acharAtleta(fraseNum, ctx)
   if (!atletaId && fundamento === 'saque' && ctx.sacadoraId) atletaId = ctx.sacadoraId
   let resultado: ResultadoEvento | undefined
   if (fundamento && SEM_RESULTADO.includes(fundamento)) resultado = fundamento === 'nao_deslocou' ? 'ERRO' : 'ACERTO'
   else resultado = acharResultado(fraseNum, fundamento)
   if (fundamento && resultado && !SEM_RESULTADO.includes(fundamento) && !resultadosPossiveis(fundamento).includes(resultado)) resultado = undefined
+  const tipoErro = bloqueado && fundamento === 'ataque' ? TIPO_BLOQUEADO : undefined
+  if (tipoErro) resultado = 'ERRO'
 
   // Zona só vale no ataque e no saque (os mesmos da quadrinha). Sem
   // fundamento ainda, guarda: a tela pode perguntar o fundamento depois.
@@ -303,7 +312,7 @@ export function interpretarFala(texto: string, ctx: ContextoVoz): ComandoVoz {
   if (!fundamento) faltando.push('fundamento')
   if (!atletaId) faltando.push('atleta')
   if (!resultado) faltando.push('resultado')
-  return { tipo: 'jogada', lado: 'CASA', fundamento, resultado, atletaId, ...(zona ? { zona } : {}), faltando }
+  return { tipo: 'jogada', lado: 'CASA', fundamento, resultado, atletaId, ...(zona ? { zona } : {}), ...(tipoErro ? { tipoErro } : {}), faltando }
 }
 
 const LABEL_RESULTADO_VOZ: Record<ResultadoEvento, string> = {
@@ -317,7 +326,7 @@ const LABEL_FUNDAMENTO_VOZ: Record<FundamentoScout, string> = {
 
 /** Frase curta que o celular fala de volta pra confirmar ("Ataque Marina, ponto"). */
 export function fraseConfirmacao(
-  c: { lado: 'CASA' | 'ADVERSARIO'; fundamento: FundamentoScout; resultado: ResultadoEvento; numeroAdversario?: string; zona?: number },
+  c: { lado: 'CASA' | 'ADVERSARIO'; fundamento: FundamentoScout; resultado: ResultadoEvento; numeroAdversario?: string; zona?: number; tipoErro?: string },
   nomeAtleta?: string,
   /** true = nome completo (na tela); false = só o primeiro nome (falado). */
   nomeCompleto = false,
@@ -331,7 +340,8 @@ export function fraseConfirmacao(
   const nome = nomeAtleta ? ` ${nomeCompleto ? nomeAtleta : nomeAtleta.split(' ')[0]}` : ''
   if (SEM_RESULTADO.includes(c.fundamento)) return `${f[0].toUpperCase()}${f.slice(1)}${nome}`
   const zona = c.zona && FUNDAMENTOS_COM_ZONA.includes(c.fundamento) ? `, zona ${c.zona}` : ''
-  return `${f[0].toUpperCase()}${f.slice(1)}${nome}, ${LABEL_RESULTADO_VOZ[c.resultado]}${zona}`
+  const res = c.tipoErro === TIPO_BLOQUEADO && c.fundamento === 'ataque' ? 'bloqueado' : LABEL_RESULTADO_VOZ[c.resultado]
+  return `${f[0].toUpperCase()}${f.slice(1)}${nome}, ${res}${zona}`
 }
 
 export { LABEL_RESULTADO_VOZ, LABEL_FUNDAMENTO_VOZ }

@@ -25,6 +25,7 @@ import { detectarEfeitoPonto, type EfeitoPonto } from '../efeitoPonto'
 import EfeitoPontoDestaque from '../components/EfeitoPonto'
 import { alertasTendencia, textoAlerta, desempenhoPorRodizio } from '../analiseAvancada'
 import { FUNDAMENTOS_COM_ZONA, DESENHO_QUADRA, carimbarZona } from '../zonas'
+import { TIPO_BLOQUEADO, marcarDetalheErro } from '../bloqueio'
 
 // Cor e emoji por fundamento (pedido 30/10/2026: "mudar as cores... colocar
 // alguns emojis pra ficar mais divertido") — só identidade visual, não muda
@@ -149,7 +150,19 @@ function QuadrinhaZonas({ zona, onEscolher }: { zona: number | null; onEscolher:
 
 // Levantamento e Recepção/Defesa usam Bom/Médio/Erro (nunca fecham rally no
 // "bom/médio" — só marcam estatística da jogadora). Os demais usam Acerto/Em jogo/Erro.
-function opcoesPara(fundamento: FundamentoScout): { resultado: ResultadoEvento; label: string; cor: string }[] {
+// Ataque (pedido 27/11/2026): o erro se divide em "Erro" (fora/rede) e
+// "Bloqueado" — os dois são ERRO (ponto deles), o bloqueado só leva o
+// detalhe BLOQUEADO. Ficam lado a lado (`meia`) pra janela não crescer.
+type OpcaoResultado = { resultado: ResultadoEvento; label: string; cor: string; tipoErro?: string; meia?: boolean }
+function opcoesPara(fundamento: FundamentoScout): OpcaoResultado[] {
+  if (fundamento === 'ataque') {
+    return [
+      { resultado: 'ACERTO', label: '+ Ponto', cor: 'var(--rd-positivo)' },
+      { resultado: 'EM_JOGO', label: '= Em jogo', cor: 'var(--rd-neutro)' },
+      { resultado: 'ERRO', label: '- Erro', cor: 'var(--rd-erro)', meia: true },
+      { resultado: 'ERRO', label: '🧱 Bloqueado', cor: '#922b21', tipoErro: TIPO_BLOQUEADO, meia: true },
+    ]
+  }
   if (fundamento === 'recepcao' || fundamento === 'levantamento' || fundamento === 'defesa') {
     return [
       { resultado: 'BOM', label: '🟢 Bom', cor: 'var(--rd-positivo)' },
@@ -426,6 +439,7 @@ export default function ModoJogo() {
     for (const m of ms) {
       if (setEstaFechado(novoSet, partida!)) break
       novoSet = registrarEventoTime(novoSet, m.lado, m.fundamento, m.resultado, m.lado === 'CASA' ? m.atletaId : undefined, m.numeroAdversario)
+      if (m.tipoErro) novoSet = marcarDetalheErro(novoSet, m.tipoErro)
       if (m.zona) novoSet = carimbarZona(novoSet, String(m.zona))
       if (videoAberto) novoSet = carimbarVideo(novoSet, tempoDoLance.current)
       marcadas += 1
@@ -523,9 +537,9 @@ export default function ModoJogo() {
     setModalSubStep('resultado')
   }
 
-  function confirmarMarcar(resultado: ResultadoEvento) {
+  function confirmarMarcar(resultado: ResultadoEvento, tipoErro?: string) {
     if (!fundamentoSel || !atorSel) return
-    const novoSet = registrarEventoTime(setAtual, 'CASA', fundamentoSel, resultado, atorSel)
+    const novoSet = marcarDetalheErro(registrarEventoTime(setAtual, 'CASA', fundamentoSel, resultado, atorSel), tipoErro)
     registrar(carimbarZona(novoSet, zonaSel === null ? null : String(zonaSel)))
     fecharModal()
   }
@@ -1113,12 +1127,12 @@ export default function ModoJogo() {
                 {FUNDAMENTOS_COM_ZONA.includes(fundamentoSel) && (
                   <QuadrinhaZonas zona={zonaSel} onEscolher={setZonaSel} />
                 )}
-                <div className="grid grid-cols-1 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   {opcoesPara(fundamentoSel).map((op) => (
                     <button
-                      key={op.resultado}
-                      onClick={() => confirmarMarcar(op.resultado)}
-                      className="rd-btn-grande text-white"
+                      key={`${op.resultado}-${op.tipoErro ?? ''}`}
+                      onClick={() => confirmarMarcar(op.resultado, op.tipoErro)}
+                      className={`rd-btn-grande text-white ${op.meia ? '' : 'col-span-2'}`}
                       style={{ background: op.cor, borderColor: op.cor }}
                     >
                       {op.label}
@@ -1236,7 +1250,7 @@ export default function ModoJogo() {
                 ) : (
                   <Field label="Resultado">
                     <div className="grid grid-cols-3 gap-2">
-                      {opcoesPara(fundEdit).map((op) => (
+                      {opcoesPara(fundEdit).filter((op) => !op.tipoErro).map((op) => (
                         <button
                           key={op.resultado}
                           type="button"

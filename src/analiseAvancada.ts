@@ -9,6 +9,7 @@
 // - Resumo do ponto a ponto (viradas, empates, maior vantagem)
 // - Alertas de tendência ao vivo ("3 erros nos últimos 4 saques")
 import type { FundamentoScout, Posicao, Rally, RallyEvento, ResultadoEvento, SetPartida } from './types'
+import { ehAtaqueBloqueado } from './bloqueio'
 import { quadraComLibero, herdarLibero, linhaVazia, type LinhaFundamento } from './scoutEngine'
 
 const ehNosso = (e: RallyEvento) => e.ladoResponsavel !== 'ADVERSARIO'
@@ -136,7 +137,7 @@ export function ataquePorRecepcao(sets: SetPartida[]): LinhaAtaquePorRecepcao[] 
 
 // --------------------------------------------- K1 (side-out) × K2 (contra)
 
-export interface LinhaFase { ataque: LinhaFundamento; killPct: number; erroPct: number }
+export interface LinhaFase { ataque: LinhaFundamento; killPct: number; erroPct: number; bloqueados: number; bloqueadoPct: number }
 export interface AtaquePorFase { k1: LinhaFase; k2: LinhaFase }
 
 /** K1 = primeiro ataque depois da NOSSA recepção (side-out). K2 = todos os
@@ -145,17 +146,22 @@ export interface AtaquePorFase { k1: LinhaFase; k2: LinhaFase }
 export function ataquePorFase(sets: SetPartida[]): AtaquePorFase {
   const k1 = linhaVazia()
   const k2 = linhaVazia()
+  let bloqK1 = 0, bloqK2 = 0
   const idsK1 = new Set(ralliesRecebidos(sets).map((r) => r.ataqueK1?.id).filter(Boolean))
   for (const set of sets) {
     for (const rally of set.rallies) {
       for (const e of rally.eventos) {
         if (!ehNosso(e) || e.fundamento !== 'ataque') continue
-        somar(idsK1.has(e.id) ? k1 : k2, e.resultado)
+        const ehK1 = idsK1.has(e.id)
+        somar(ehK1 ? k1 : k2, e.resultado)
+        if (ehAtaqueBloqueado(e)) { if (ehK1) bloqK1 += 1; else bloqK2 += 1 }
       }
     }
   }
-  const linha = (l: LinhaFundamento): LinhaFase => ({ ataque: fechar(l), killPct: pct(l.positivo, l.total), erroPct: pct(l.erro, l.total) })
-  return { k1: linha(k1), k2: linha(k2) }
+  const linha = (l: LinhaFundamento, bloq: number): LinhaFase => ({
+    ataque: fechar(l), killPct: pct(l.positivo, l.total), erroPct: pct(l.erro, l.total), bloqueados: bloq, bloqueadoPct: pct(bloq, l.total),
+  })
+  return { k1: linha(k1, bloqK1), k2: linha(k2, bloqK2) }
 }
 
 // ------------------------------------------------------- por rodízio

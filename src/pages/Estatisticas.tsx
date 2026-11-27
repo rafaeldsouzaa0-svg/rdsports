@@ -18,6 +18,7 @@ import {
   type PeriodoEstatistica, type LinhaAtletaCompleta, type ItemOrigem,
 } from '../estatisticasCompletas'
 import { formatDate } from '../utils'
+import { ehAtaqueBloqueado } from '../bloqueio'
 import { Secao, Kpi, BarraHorizontal, corEf, corPct } from '../components/estatisticaUi'
 import type { SetPartida, Atleta, Partida, FundamentoScout } from '../types'
 
@@ -149,6 +150,7 @@ function AbaGeral({ partidas }: { partidas: Partida[] }) {
 function AbaFundamentos({ sets }: { sets: SetPartida[] }) {
   const equipe = scoutEquipe(sets)
   const comDados = FUNDAMENTOS_SCOUT.filter((f) => equipe[f].total > 0)
+  const bloqueadosEquipe = sets.reduce((t, st) => t + st.rallies.reduce((u, r) => u + r.eventos.filter(ehAtaqueBloqueado).length, 0), 0)
   const errosDeles = erroPorFundamentoAdversario(sets)
   const errosDelesLista = FUNDAMENTOS_SCOUT.filter((f) => errosDeles[f].total > 0).sort((a, b) => errosDeles[b].total - errosDeles[a].total)
   const maxErrosDeles = Math.max(1, ...errosDelesLista.map((f) => errosDeles[f].total))
@@ -179,6 +181,9 @@ function AbaFundamentos({ sets }: { sets: SetPartida[] }) {
                     <span><b style={{ color: 'var(--rd-erro)' }}>{l.erro}</b> erros</span>
                     <span>{l.total} total</span>
                   </div>
+                  {f === 'ataque' && bloqueadosEquipe > 0 && (
+                    <div className="text-[11px] mt-0.5 text-[var(--rd-text-dim)]">dos {l.erro} erros, <b style={{ color: 'var(--rd-erro)' }}>{bloqueadosEquipe}</b> foram bloqueados</div>
+                  )}
                 </div>
               )
             })}
@@ -262,10 +267,11 @@ function AbaAtletas({ partidas, nomeDe }: { partidas: Partida[]; nomeDe: (id: st
             </button>
             {aberto && (
               <div className="px-3 pb-3 border-t" style={{ borderColor: 'var(--rd-border)' }}>
-                <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="grid grid-cols-2 gap-2 mt-3">
                   <Kpi label="Aces" valor={l.aces} />
                   <Kpi label="Ataques ponto" valor={l.ataquesPonto} />
-                  <Kpi label="Bloqueios" valor={l.bloqueiosPonto} />
+                  <Kpi label="Bloqueios ponto" valor={l.bloqueiosPonto} />
+                  <Kpi label="Ataques bloqueados" valor={l.ataquesBloqueados} />
                 </div>
                 <table className="w-full text-xs mt-3">
                   <thead>
