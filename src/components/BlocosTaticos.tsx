@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Gauge, Swords, RotateCw, Share2 } from 'lucide-react'
 import type { Atleta, SetPartida } from '../types'
-import { LABEL_POSICAO } from '../types'
+import { LABEL_POSICAO, normalizarPosicao } from '../types'
 import { ataquePorRecepcao, ataquePorFase, desempenhoPorRodizio, distribuicaoAtaque } from '../analiseAvancada'
 import { Secao, Kpi, corEf, corPct } from './estatisticaUi'
 import { Card } from './ui'
@@ -74,7 +74,7 @@ export function BlocoAtaquePorFase({ sets }: { sets: SetPartida[] }) {
 }
 
 export function BlocoRodizios({ sets, atletas }: { sets: SetPartida[]; atletas: Atleta[] }) {
-  const levantadoras = new Set(atletas.filter((a) => a.posicaoPrincipal === 'LEVANTADORA').map((a) => a.id))
+  const levantadoras = new Set(atletas.filter((a) => normalizarPosicao(a.posicaoPrincipal) === 'LEVANTADORA').map((a) => a.id))
   const r = desempenhoPorRodizio(sets, levantadoras)
   const comDados = r.linhas.filter((l) => l.sideOutOportunidades + l.breakOportunidades > 0)
   if (comDados.length === 0) return null
@@ -128,7 +128,7 @@ export function BlocoRodizios({ sets, atletas }: { sets: SetPartida[]; atletas: 
 export function BlocoDistribuicao({ sets, atletas }: { sets: SetPartida[]; atletas: Atleta[] }) {
   const [porFuncao, setPorFuncao] = useState(false)
   const porId = new Map(atletas.map((a) => [a.id, a]))
-  const grupos = distribuicaoAtaque(sets, (id) => porId.get(id)?.posicaoPrincipal)
+  const grupos = distribuicaoAtaque(sets, (id) => normalizarPosicao(porId.get(id)?.posicaoPrincipal))
   if (grupos.length === 0) return null
   const rotulo = (chave: string) => {
     if (!porFuncao) return porId.get(chave)?.nome ?? 'Atleta removida'
