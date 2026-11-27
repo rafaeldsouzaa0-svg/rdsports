@@ -7,6 +7,7 @@ import { useStore } from '../store'
 import { PageTitle, Card, EmptyState } from '../components/ui'
 import GraficoEvolucao from '../components/GraficoEvolucao'
 import BlocosTaticos from '../components/BlocosTaticos'
+import MapaZonas from '../components/MapaZonas'
 import {
   scoutEquipe, FUNDAMENTOS_SCOUT, LABEL_FUNDAMENTO, analisePorAtletaEPosicao, sideOutBreakPoint,
   desempenhoEmPontosDecisivos, combinarLinhas, analisePorPosicaoPartida, erroPorFundamentoAdversario,
@@ -364,7 +365,7 @@ function AbaJogos({ partidas }: { partidas: Partida[] }) {
   )
 }
 
-function AbaQuadra({ sets, nomeDe }: { sets: SetPartida[]; nomeDe: (id: string) => Atleta | undefined }) {
+function AbaQuadra({ sets, nomeDe, atletas }: { sets: SetPartida[]; nomeDe: (id: string) => Atleta | undefined; atletas: Atleta[] }) {
   const porPos = analisePorPosicaoPartida(sets)
   const temPos = [0, 1, 2, 3, 4, 5].some((i) => porPos[i].pontos + porPos[i].erros > 0)
   const porAtleta = analisePorAtletaEPosicao(sets)
@@ -375,11 +376,12 @@ function AbaQuadra({ sets, nomeDe }: { sets: SetPartida[]; nomeDe: (id: string) 
   // rede em cima (IV, III, II) e fundo embaixo (V, VI, I).
   const desenho = [[3, 2, 1], [4, 5, 0]]
 
-  if (!temPos && linhas.length === 0) {
-    return <Card><p className="text-xs text-[var(--rd-text-dim)]">Precisa da escalação (papeleta) preenchida nos sets pra calcular por posição.</p></Card>
-  }
   return (
     <div className="grid gap-4">
+      <MapaZonas sets={sets} atletas={atletas} />
+      {!temPos && linhas.length === 0 && (
+        <Card><p className="text-xs text-[var(--rd-text-dim)]">Precisa da escalação (papeleta) preenchida nos sets pra calcular por posição.</p></Card>
+      )}
       {temPos && (
         <Secao titulo="Pontos e erros por posição" icon={<MapPin size={16} />} dica="Lances que fecharam o rally, na posição em que a atleta estava. Verde = pontos, vermelho = erros.">
           <div className="rounded-xl overflow-hidden border-2" style={{ borderColor: 'var(--rd-gold)' }}>
@@ -567,7 +569,7 @@ export default function Estatisticas() {
           {aba === 'atletas' && <AbaAtletas partidas={filtradas} nomeDe={nomeDe} />}
           {aba === 'rankings' && <AbaRankings partidas={filtradas} nomeDe={nomeDe} />}
           {aba === 'jogos' && <AbaJogos partidas={filtradas} />}
-          {aba === 'quadra' && <AbaQuadra sets={sets} nomeDe={nomeDe} />}
+          {aba === 'quadra' && <AbaQuadra sets={sets} nomeDe={nomeDe} atletas={atletas} />}
         </>
       )}
     </div>

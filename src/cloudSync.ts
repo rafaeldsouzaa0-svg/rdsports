@@ -10,6 +10,7 @@
 // Atleta), este módulo provisiona automaticamente uma Equipe/Categoria "espelho" por
 // Turma e uma Temporada ativa do ano atual — só pra satisfazer as colunas obrigatórias
 // do schema antigo, sem expor isso na UI.
+import { zonaParaBanco, zonaDoBanco, separarPorZona } from './zonas'
 import { supabase } from './supabaseClient'
 import { enviarTreinos, lerTreinos, lerTabelaInteira } from './syncTreinos'
 import { colunasFormato, formatoDaLinha } from './formatoPartidaSync'
@@ -301,6 +302,7 @@ export async function pushAll(estado: {
               resultado: ev.resultado, detalhe: ev.tipoErro ?? ev.tipoPontoAtaqueAdversario ?? null,
               lado_responsavel: ev.ladoResponsavel ?? null, numero_adversario: ev.numeroAdversario ?? null,
               video_seg: ev.videoSeg ?? null,
+              ...(zonaParaBanco(ev.zona) !== null ? { zona: zonaParaBanco(ev.zona) } : {}),
             })
           }
         }
@@ -320,7 +322,11 @@ export async function pushAll(estado: {
     await upsertEmLotes('sets_partida', todosSets)
     await upsertEmLotes('substituicoes', todasSubstituicoes)
     await upsertEmLotes('rallies', todasRallies)
-    await upsertEmLotes('rally_eventos', todosEventos)
+    // Lances sem zona vão num envio SEM a coluna zona, pra não apagar zonas
+    // que já estão na nuvem (havia 33 de uma versão antiga, 27/11/2026).
+    const { comZona, semZona } = separarPorZona(todosEventos)
+    await upsertEmLotes('rally_eventos', semZona)
+    await upsertEmLotes('rally_eventos', comZona)
   }
 
   if (falhas.length) {
@@ -453,6 +459,7 @@ export async function pullAll(): Promise<DadosNuvem | null> {
                   ladoResponsavel: ev.lado_responsavel === 'ADVERSARIO' ? 'ADVERSARIO' as const : undefined,
                   numeroAdversario: ev.numero_adversario ?? undefined,
                   ...(ev.video_seg != null ? { videoSeg: Number(ev.video_seg) } : {}),
+                  ...(zonaDoBanco(ev.zona) ? { zona: zonaDoBanco(ev.zona) } : {}),
                 }))
               return {
                 id: r.id, numero: r.numero, eventos, pontoCasa: r.ponto === 'CASA',

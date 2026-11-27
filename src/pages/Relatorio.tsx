@@ -13,6 +13,7 @@ import {
 } from '../scoutEngine'
 import { gerarResumoPartida } from '../resumoAutomatico'
 import BlocosTaticos from '../components/BlocosTaticos'
+import MapaZonas from '../components/MapaZonas'
 import { resumoPlacarSet } from '../analiseAvancada'
 import { gerarHtmlRelatorioPartida, gerarHtmlRelatorioAtleta, baixarHtml, abrirParaImprimir, slugify } from '../htmlReport'
 import type { Partida, SetPartida, Atleta } from '../types'
@@ -709,6 +710,8 @@ export default function Relatorio() {
       <SecaoCompararAtletas sets={setsParaExibir} atletas={atletas} />
 
       <SecaoPorPosicao sets={setsParaExibir} />
+
+      <div className="mb-5"><MapaZonas sets={setsParaExibir} atletas={atletas} /></div>
 
       <SecaoPontosAdversario sets={setsParaExibir} />
 

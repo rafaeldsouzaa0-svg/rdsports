@@ -24,6 +24,7 @@ import { carimbarVideo, idYoutube, lancesComVideo } from '../videoJogo'
 import { detectarEfeitoPonto, type EfeitoPonto } from '../efeitoPonto'
 import EfeitoPontoDestaque from '../components/EfeitoPonto'
 import { alertasTendencia, textoAlerta, desempenhoPorRodizio } from '../analiseAvancada'
+import { FUNDAMENTOS_COM_ZONA, DESENHO_QUADRA, carimbarZona } from '../zonas'
 
 // Cor e emoji por fundamento (pedido 30/10/2026: "mudar as cores... colocar
 // alguns emojis pra ficar mais divertido") — só identidade visual, não muda
@@ -107,6 +108,40 @@ function FichaPosicao({
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+/** Quadrinha de 9 zonas (pedido 27/11/2026, igual à prancheta): toca pra
+ *  onde a bola foi e depois no resultado. Opcional: tocar direto no
+ *  resultado marca sem zona. Tocar de novo na mesma zona desmarca. */
+function QuadrinhaZonas({ zona, onEscolher }: { zona: number | null; onEscolher: (z: number | null) => void }) {
+  return (
+    <div className="mb-3">
+      <div className="text-[11px] font-bold text-[var(--rd-text-dim)] mb-1.5 flex justify-between">
+        <span>Pra onde foi? <span className="font-normal">(opcional)</span></span>
+        {zona !== null && <span style={{ color: 'var(--rd-gold)' }}>Zona {zona}</span>}
+      </div>
+      <div className="rounded-lg overflow-hidden" style={{ border: '2px solid #d4af37', background: '#0b0a08' }}>
+        <div className="h-1.5" style={{ background: 'repeating-linear-gradient(90deg, #d4af37 0 8px, #f1c40f 8px 16px)' }} aria-label="Rede" />
+        <div className="grid grid-cols-3" role="group" aria-label="Zona de destino">
+          {DESENHO_QUADRA.flat().map((z) => {
+            const ativa = zona === z
+            return (
+              <button key={z} type="button" onClick={() => onEscolher(ativa ? null : z)} aria-pressed={ativa} aria-label={`Zona ${z}`}
+                className="text-xl font-black"
+                style={{
+                  minHeight: 46,
+                  background: ativa ? '#f1c40f' : '#0b0a08',
+                  color: ativa ? '#1a1300' : '#d4af37',
+                  border: '1px dashed rgba(212,175,55,.55)',
+                }}>
+                {z}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -198,6 +233,8 @@ export default function ModoJogo() {
   const [fundamentoSel, setFundamentoSel] = useState<FundamentoScout | null>(null)
   const [modalSubStep, setModalSubStep] = useState<'quem' | 'resultado'>('quem')
   const [atorSel, setAtorSel] = useState<string | null>(null)
+  // Zona de destino do ataque/saque (opcional, pedido 27/11/2026).
+  const [zonaSel, setZonaSel] = useState<number | null>(null)
 
   // Adversário (pedido 23/10/2026, simplificado): um botão só, do mesmo
   // tamanho do "Não deslocou" — abre uma janela separada e bem mais rápida:
@@ -437,7 +474,7 @@ export default function ModoJogo() {
   }
 
   function fecharModal() {
-    setFundamentoSel(null); setModalSubStep('quem'); setAtorSel(null)
+    setFundamentoSel(null); setModalSubStep('quem'); setAtorSel(null); setZonaSel(null)
   }
 
   /** Toca num dos botões de fundamento (ou de ponto específico) do NOSSO time
@@ -448,6 +485,7 @@ export default function ModoJogo() {
   function abrirModalFundamento(f: FundamentoScout) {
     inicioDoLance()
     setFundamentoSel(f)
+    setZonaSel(null)
     const sacadoraId = ehJogo && rotacao ? rotacao.posicoes[0] : null
     if (f === 'saque' && rotacao?.servindo === 'CASA' && sacadoraId) {
       setAtorSel(sacadoraId)
@@ -487,7 +525,7 @@ export default function ModoJogo() {
   function confirmarMarcar(resultado: ResultadoEvento) {
     if (!fundamentoSel || !atorSel) return
     const novoSet = registrarEventoTime(setAtual, 'CASA', fundamentoSel, resultado, atorSel)
-    registrar(novoSet)
+    registrar(carimbarZona(novoSet, zonaSel === null ? null : String(zonaSel)))
     fecharModal()
   }
 
@@ -1071,6 +1109,9 @@ export default function ModoJogo() {
             {modalSubStep === 'resultado' && fundamentoSel && (
               <>
                 <div className="text-xs text-[var(--rd-text-dim)] mb-3">{nomeAtor}</div>
+                {FUNDAMENTOS_COM_ZONA.includes(fundamentoSel) && (
+                  <QuadrinhaZonas zona={zonaSel} onEscolher={setZonaSel} />
+                )}
                 <div className="grid grid-cols-1 gap-2.5">
                   {opcoesPara(fundamentoSel).map((op) => (
                     <button
