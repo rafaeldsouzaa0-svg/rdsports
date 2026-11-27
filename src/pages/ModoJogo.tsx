@@ -123,8 +123,8 @@ function QuadrinhaZonas({ zona, onEscolher }: { zona: number | null; onEscolher:
         <span>Pra onde foi? <span className="font-normal">(opcional)</span></span>
         {zona !== null && <span style={{ color: 'var(--rd-gold)' }}>Zona {zona}</span>}
       </div>
-      <div className="rounded-lg overflow-hidden" style={{ border: '2px solid #e8eef5' }}>
-        <div className="h-1.5" style={{ background: 'repeating-linear-gradient(90deg, #e8eef5 0 8px, #c0392b 8px 16px)' }} aria-label="Rede" />
+      <div className="rounded-lg overflow-hidden" style={{ border: '2px solid #d4af37', background: '#0b0a08' }}>
+        <div className="h-1.5" style={{ background: 'repeating-linear-gradient(90deg, #d4af37 0 8px, #f1c40f 8px 16px)' }} aria-label="Rede" />
         <div className="grid grid-cols-3" role="group" aria-label="Zona de destino">
           {DESENHO_QUADRA.flat().map((z) => {
             const ativa = zona === z
@@ -133,9 +133,9 @@ function QuadrinhaZonas({ zona, onEscolher }: { zona: number | null; onEscolher:
                 className="text-xl font-black"
                 style={{
                   minHeight: 46,
-                  background: ativa ? 'var(--rd-gold)' : '#e39b3a',
-                  color: ativa ? '#1a1300' : 'rgba(255,255,255,.92)',
-                  border: '1px dashed rgba(255,255,255,.45)',
+                  background: ativa ? '#f1c40f' : '#0b0a08',
+                  color: ativa ? '#1a1300' : '#d4af37',
+                  border: '1px dashed rgba(212,175,55,.55)',
                 }}>
                 {z}
               </button>
