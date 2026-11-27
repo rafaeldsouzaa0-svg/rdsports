@@ -23,6 +23,7 @@ import PlayerVideo, { type ControlePlayer, type FonteVideo } from '../components
 import { carimbarVideo, idYoutube, lancesComVideo } from '../videoJogo'
 import { detectarEfeitoPonto, type EfeitoPonto } from '../efeitoPonto'
 import EfeitoPontoDestaque from '../components/EfeitoPonto'
+import { alertasTendencia, textoAlerta, desempenhoPorRodizio } from '../analiseAvancada'
 
 // Cor e emoji por fundamento (pedido 30/10/2026: "mudar as cores... colocar
 // alguns emojis pra ficar mais divertido") — só identidade visual, não muda
@@ -284,6 +285,9 @@ export default function ModoJogo() {
   const mapaNomes = Object.fromEntries(meusAtletas.map((a) => [a.id, a.nome]))
   const ehJogo = partida.tipo === 'JOGO'
   const sets = partida.setsPartida
+  // Alertas de tendência (Etapa 1 Data Volley, 27/11/2026): ficam no painel
+  // "Ver números"; o botão só ganha uma bolinha, sem mexer no lugar de nada.
+  const alertasAoVivo = alertasTendencia(sets)
   const semSetAinda = sets.length === 0
   if (!ehJogo && semSetAinda) return <p>Preparando treino…</p>
   const setAtual = sets[sets.length - 1]
@@ -865,11 +869,15 @@ export default function ModoJogo() {
           <Pencil size={14} /> Corrigir lançamento
         </button>
         <button
-          className="rd-btn text-xs"
+          className="rd-btn text-xs relative"
           onClick={() => setPainelNumerosAberto(true)}
           disabled={sets.every((s) => s.rallies.length === 0)}
+          aria-label={alertasAoVivo.some((a) => a.tipo === 'alerta') ? 'Ver números (tem alerta)' : undefined}
         >
           <BarChart3 size={14} /> Ver números
+          {alertasAoVivo.some((a) => a.tipo === 'alerta') && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2" style={{ background: 'var(--rd-erro)', borderColor: 'var(--rd-surface)' }} />
+          )}
         </button>
         {ehJogo && rotacao && (
           <button className="rd-btn text-xs" onClick={() => { setSubstituicaoAberta((v) => !v); setPosicaoSaindo(null) }}>
@@ -1234,6 +1242,36 @@ export default function ModoJogo() {
                     <div className="font-black text-sm flex items-center gap-1.5"><BarChart3 size={15} className="rd-accent-text" /> Números ao vivo</div>
                     <button onClick={() => setPainelNumerosAberto(false)} className="text-xl leading-none text-[var(--rd-text-dim)] px-2">×</button>
                   </div>
+
+                  {alertasAoVivo.length > 0 && (
+                    <div className="grid gap-1.5 mb-3">
+                      {alertasAoVivo.slice(0, 4).map((a) => (
+                        <div key={`${a.atletaId}-${a.fundamento}`} className="text-xs px-2.5 py-2 rounded-lg flex items-center gap-2"
+                          style={a.tipo === 'alerta'
+                            ? { background: 'rgba(231,76,60,.12)', border: '1px solid rgba(231,76,60,.35)' }
+                            : { background: 'rgba(46,204,113,.12)', border: '1px solid rgba(46,204,113,.35)' }}>
+                          <span aria-hidden>{a.tipo === 'alerta' ? '⚠️' : '🔥'}</span>
+                          <span><b>{mapaNomes[a.atletaId] ?? 'Atleta'}</b> {textoAlerta(a)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(() => {
+                    const levs = new Set(meusAtletas.filter((a) => a.posicaoPrincipal === 'LEVANTADORA').map((a) => a.id))
+                    const rod = desempenhoPorRodizio(sets, levs)
+                    const comDados = rod.linhas.filter((l) => l.pontosFeitos + l.pontosSofridos >= 3)
+                    if (comDados.length < 2) return null
+                    const pior = [...comDados].sort((x, y) => x.saldo - y.saldo)[0]
+                    if (pior.saldo >= 0) return null
+                    const nome = rod.modo === 'levantadora' ? `P${pior.rodizio + 1}` : `R${pior.rodizio + 1}`
+                    return (
+                      <p className="text-xs mb-3 p-2.5 rounded-lg" style={{ background: 'rgba(231,76,60,.08)', border: '1px solid rgba(231,76,60,.25)' }}>
+                        🔄 Rodízio que mais sofre: <b>{nome}</b> · {pior.pontosFeitos} × {pior.pontosSofridos}
+                        {pior.sideOutOportunidades > 0 && <> · side-out {pior.sideOutPontos}/{pior.sideOutOportunidades}</>}
+                      </p>
+                    )
+                  })()}
 
                   <div className="rounded-lg border text-center py-3 px-2 mb-3" style={{ borderColor: 'var(--rd-border)' }}>
                     <div className="text-[10px] font-bold text-[var(--rd-text-dim)] uppercase tracking-wide">Eficiência geral (partida até agora)</div>
