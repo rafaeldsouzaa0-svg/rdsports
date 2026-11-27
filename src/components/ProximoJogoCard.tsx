@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, Users, Play, Plus, X, Check, MapPin, Trophy } from 'lucide-react'
+import { CalendarDays, Users, Play, Plus, X, Check, MapPin, Trophy, Swords } from 'lucide-react'
+import { adversariosComJogos } from '../relatorioAdversario'
+import { normalizarNome } from '../estatisticasCompletas'
 import { useStore } from '../store'
 import { Card, Button } from './ui'
 import { LogoExibicao } from './LogoUpload'
@@ -13,7 +15,7 @@ import { proximoJogo, contagemRegressiva, checklistDoJogo, alternarItem, adicion
  *  checklist é guardado no próprio jogo agendado (e sincroniza com a nuvem). */
 export default function ProximoJogoCard() {
   const navigate = useNavigate()
-  const { jogosAgendados, turmas, escolas, atletas, adversarios, updateJogoAgendado } = useStore()
+  const { jogosAgendados, turmas, escolas, atletas, adversarios, partidas, updateJogoAgendado } = useStore()
   const [agora, setAgora] = useState(() => new Date())
   const [novoItem, setNovoItem] = useState('')
 
@@ -151,6 +153,9 @@ export default function ProximoJogoCard() {
           {contagem.ehHoje ? <><Play size={16} /> Ir para o scout</> : <><CalendarDays size={16} /> Ver no calendário</>}
         </Button>
         <Button onClick={() => navigate(`/turmas/${jogo.turmaId}`)}><Users size={16} /> Convocação</Button>
+        {jogo.adversarioNome && adversariosComJogos(partidas).some((a) => a.chave === normalizarNome(jogo.adversarioNome)) && (
+          <Button onClick={() => navigate(`/adversario?nome=${encodeURIComponent(jogo.adversarioNome)}`)}><Swords size={16} /> Relatório do adversário</Button>
+        )}
       </div>
     </Card>
   )

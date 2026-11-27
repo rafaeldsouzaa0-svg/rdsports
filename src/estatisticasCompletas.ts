@@ -4,6 +4,7 @@
 // pedido no jogo. As regras de positivo/neutro/erro e de eficiência são as
 // mesmas do scoutEngine.ts (eficiência = (positivo − erro) / total × 100).
 import type { FundamentoScout, Partida, SetPartida, RallyEvento } from './types'
+import { ehAtaqueBloqueado } from './bloqueio'
 import { scoutPorAtleta, scoutEquipe, sideOutBreakPoint, LABEL_FUNDAMENTO, linhaVazia, FUNDAMENTOS_SCOUT, type LinhaFundamento } from './scoutEngine'
 
 export type PeriodoEstatistica = 'TEMPORADA' | 'ULTIMOS_5' | 'ULTIMO'
@@ -19,7 +20,7 @@ export interface FiltroEstatistica {
 }
 
 export function normalizarNome(nome: string | undefined): string {
-  return (nome ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  return (nome ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ')
 }
 
 /** Só jogos FINALIZADOS e não apagados, do mais antigo pro mais novo. */
@@ -141,8 +142,11 @@ export function origemDosPontos(sets: SetPartida[]): OrigemPontos {
       } else if (doAdversario) {
         somar(perdidos, `adv_${ev.fundamento}`, `Ponto deles: ${LABEL_FUNDAMENTO[ev.fundamento].toLowerCase()}`)
       } else {
-        const label = ev.fundamento === 'nao_deslocou' ? 'Nosso erro: não deslocou' : `Nosso erro: ${LABEL_FUNDAMENTO[ev.fundamento].toLowerCase()}`
-        somar(perdidos, `erro_${ev.fundamento}`, label)
+        if (ehAtaqueBloqueado(ev)) somar(perdidos, 'ataque_bloqueado', 'Nosso ataque bloqueado')
+        else {
+          const label = ev.fundamento === 'nao_deslocou' ? 'Nosso erro: não deslocou' : `Nosso erro: ${LABEL_FUNDAMENTO[ev.fundamento].toLowerCase()}`
+          somar(perdidos, `erro_${ev.fundamento}`, label)
+        }
       }
     }
   }
@@ -278,14 +282,16 @@ export interface LinhaAtletaCompleta {
   aces: number
   bloqueiosPonto: number
   ataquesPonto: number
+  /** Ataques dela que pararam no bloqueio (fazem parte dos erros). */
+  ataquesBloqueados: number
 }
 
 export function estatisticasPorAtleta(partidas: Partida[]): LinhaAtletaCompleta[] {
   const sets = partidas.flatMap((p) => p.setsPartida)
   const base = scoutPorAtleta(sets)
-  const extra = new Map<string, { jogos: Set<string>; pontos: number; erros: number; aces: number; bloq: number; atq: number }>()
+  const extra = new Map<string, { jogos: Set<string>; pontos: number; erros: number; aces: number; bloq: number; atq: number; atqBloq: number }>()
   const pegar = (id: string) => {
-    if (!extra.has(id)) extra.set(id, { jogos: new Set(), pontos: 0, erros: 0, aces: 0, bloq: 0, atq: 0 })
+    if (!extra.has(id)) extra.set(id, { jogos: new Set(), pontos: 0, erros: 0, aces: 0, bloq: 0, atq: 0, atqBloq: 0 })
     return extra.get(id)!
   }
   for (const p of partidas) {
@@ -303,6 +309,7 @@ export function estatisticasPorAtleta(partidas: Partida[]): LinhaAtletaCompleta[
           } else if (ev.encerraRally === 'ADVERSARIO') {
             x.erros += 1
           }
+          if (ehAtaqueBloqueado(ev)) x.atqBloq += 1
         }
       }
     }
@@ -320,6 +327,7 @@ export function estatisticasPorAtleta(partidas: Partida[]): LinhaAtletaCompleta[
       aces: x.aces,
       bloqueiosPonto: x.bloq,
       ataquesPonto: x.atq,
+      ataquesBloqueados: x.atqBloq,
     }
   })
 }

@@ -22,6 +22,8 @@ const Lixeira = lazy(() => import('./pages/Lixeira'))
 const Treinos = lazy(() => import('./pages/Treinos'))
 const SessaoTreinoForm = lazy(() => import('./pages/SessaoTreinoForm'))
 const Assistente = lazy(() => import('./pages/Assistente'))
+const ModoBanco = lazy(() => import('./pages/ModoBanco'))
+const RelatorioAdversario = lazy(() => import('./pages/RelatorioAdversario'))
 const RegistrarTreino = lazy(() => import('./pages/RegistrarTreino'))
 const Login = lazy(() => import('./pages/auth/Login'))
 const Cadastro = lazy(() => import('./pages/auth/Cadastro'))
@@ -78,6 +80,9 @@ function LayoutTreinador() {
           <Route path="/treinos/registrar" element={<RegistrarTreino />} />
           <Route path="/treinos/:id" element={<SessaoTreinoForm />} />
           <Route path="/assistente" element={<Assistente />} />
+          <Route path="/banco" element={<ModoBanco />} />
+          <Route path="/banco/:id" element={<ModoBanco />} />
+          <Route path="/adversario" element={<RelatorioAdversario />} />
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/cadastro" element={<Cadastro />} />
           <Route path="/auth/recuperar-senha" element={<RecuperarSenha />} />

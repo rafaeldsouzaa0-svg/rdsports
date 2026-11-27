@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, School, BarChart3, Calendar, Trophy, Settings, CalendarRange, ClipboardList, X, Menu, Volleyball, Sparkles } from 'lucide-react'
+import { Home, School, BarChart3, Calendar, Trophy, Settings, CalendarRange, ClipboardList, X, Menu, Volleyball, Sparkles, MonitorSmartphone, Swords } from 'lucide-react'
 
 const items = [
   { to: '/', label: 'Início', Icon: Home },
@@ -8,6 +8,8 @@ const items = [
   { to: '/escolas', label: 'Escolas', Icon: School },
   { to: '/treinos', label: 'Treinos', Icon: ClipboardList },
   { to: '/estatisticas', label: 'Estatísticas', Icon: BarChart3 },
+  { to: '/banco', label: 'Modo banco', Icon: MonitorSmartphone },
+  { to: '/adversario', label: 'Adversários', Icon: Swords },
   { to: '/calendario', label: 'Calendário', Icon: Calendar },
   { to: '/historico', label: 'Histórico', Icon: Trophy },
   { to: '/temporada', label: 'Temporada', Icon: CalendarRange },

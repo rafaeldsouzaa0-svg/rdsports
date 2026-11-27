@@ -21,6 +21,8 @@ export interface MarcacaoVoz {
   numeroAdversario?: string
   /** Zona falada (1 a 9), só no ataque/saque. */
   zona?: number
+  /** 'BLOQUEADO' quando o ataque parou no bloqueio. */
+  tipoErro?: string
 }
 
 /** Preenche o que faltava numa jogada e recalcula o que ainda falta. */
@@ -41,6 +43,7 @@ const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 const paraMarcacao = (j: Jogada): MarcacaoVoz => ({
   lado: j.lado, fundamento: j.fundamento!, resultado: j.resultado!, atletaId: j.atletaId, numeroAdversario: j.numeroAdversario,
   ...(j.zona && j.lado === 'CASA' && FUNDAMENTOS_COM_ZONA.includes(j.fundamento!) ? { zona: j.zona } : {}),
+  ...(j.tipoErro && j.lado === 'CASA' && j.fundamento === 'ataque' && j.resultado === 'ERRO' ? { tipoErro: j.tipoErro } : {}),
 })
 
 const FUNDAMENTOS_CASA: FundamentoScout[] = ['saque', 'recepcao', 'levantamento', 'ataque', 'bloqueio', 'defesa', 'bola_de_graca', 'bola_de_segunda', 'nao_deslocou']
@@ -51,6 +54,7 @@ const EXEMPLOS = [
   ['"Ataque Marina ponto"', 'ataque certo'],
   ['"Ataque Marina ponto zona 4"', 'zona é opcional (1 a 9)'],
   ['"Saque em jogo na 1"', 'zona do saque: "zona 1", "na 1"'],
+  ['"Ataque Duda bloqueado"', 'ataque que parou no bloqueio'],
   ['"Saque erro"', 'quem saca já é conhecida'],
   ['"Recepção Sofia boa"', 'boa / média / erro'],
   ['"Bloqueio Carol ponto"', ''],
@@ -277,7 +281,7 @@ export default function PainelVoz({
           <div className="text-xs font-bold mb-2 rd-accent-text">📋 Confira antes de marcar ({lista.length})</div>
           {lista.map((j, i) => {
             const nome = j.lado === 'ADVERSARIO' ? `Adversário${j.numeroAdversario ? ` (camisa ${j.numeroAdversario})` : ''}` : nomeDe(j.atletaId) ?? '❓ quem?'
-            const res = j.resultado ? (j.lado === 'ADVERSARIO' ? (j.resultado === 'ERRO' ? 'Erro deles' : 'Ponto deles') : LABEL_RESULTADO_VOZ[j.resultado]) : '❓ como foi?'
+            const res = j.resultado ? (j.lado === 'ADVERSARIO' ? (j.resultado === 'ERRO' ? 'Erro deles' : 'Ponto deles') : j.tipoErro && j.fundamento === 'ataque' && j.resultado === 'ERRO' ? 'bloqueado' : LABEL_RESULTADO_VOZ[j.resultado]) : '❓ como foi?'
             const corRes = !j.resultado ? '#f6b93b' : (j.lado === 'CASA') === (j.resultado === 'ERRO') ? 'var(--rd-erro)' : j.resultado === 'MEDIO' || j.resultado === 'EM_JOGO' ? 'var(--rd-neutro)' : 'var(--rd-positivo)'
             return (
               <div key={i} className="flex items-center justify-between gap-2 py-2 border-b last:border-b-0 text-sm" style={{ borderColor: 'var(--rd-border)', background: i === idxIncompleta ? 'rgba(246,185,59,.10)' : undefined }}>
