@@ -20,7 +20,7 @@ export interface FiltroEstatistica {
 }
 
 export function normalizarNome(nome: string | undefined): string {
-  return (nome ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  return (nome ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ')
 }
 
 /** Só jogos FINALIZADOS e não apagados, do mais antigo pro mais novo. */
