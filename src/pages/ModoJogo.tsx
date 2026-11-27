@@ -1258,7 +1258,7 @@ export default function ModoJogo() {
                   )}
 
                   {(() => {
-                    const levs = new Set(meusAtletas.filter((a) => a.posicaoPrincipal === 'LEVANTADORA').map((a) => a.id))
+                    const levs = new Set(meusAtletas.filter((a) => normalizarPosicao(a.posicaoPrincipal) === 'LEVANTADORA').map((a) => a.id))
                     const rod = desempenhoPorRodizio(sets, levs)
                     const comDados = rod.linhas.filter((l) => l.pontosFeitos + l.pontosSofridos >= 3)
                     if (comDados.length < 2) return null
