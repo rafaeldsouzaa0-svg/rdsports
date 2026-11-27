@@ -1,11 +1,12 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  BarChart3, Users, MapPin, Repeat, Crosshair, Trophy, Target, TrendingUp, ListOrdered, Shield, Flame, ChevronDown, ChevronUp, FileText, Info,
+  BarChart3, Users, MapPin, Repeat, Crosshair, Trophy, Target, TrendingUp, ListOrdered, Shield, Flame, ChevronDown, ChevronUp, FileText, Brain,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { PageTitle, Card, EmptyState } from '../components/ui'
 import GraficoEvolucao from '../components/GraficoEvolucao'
+import BlocosTaticos from '../components/BlocosTaticos'
 import {
   scoutEquipe, FUNDAMENTOS_SCOUT, LABEL_FUNDAMENTO, analisePorAtletaEPosicao, sideOutBreakPoint,
   desempenhoEmPontosDecisivos, combinarLinhas, analisePorPosicaoPartida, erroPorFundamentoAdversario,
@@ -16,15 +17,17 @@ import {
   type PeriodoEstatistica, type LinhaAtletaCompleta, type ItemOrigem,
 } from '../estatisticasCompletas'
 import { formatDate } from '../utils'
+import { Secao, Kpi, BarraHorizontal, corEf, corPct } from '../components/estatisticaUi'
 import type { SetPartida, Atleta, Partida, FundamentoScout } from '../types'
 
 const ROMANO_POS = ['I', 'II', 'III', 'IV', 'V', 'VI']
 const CHAVE_TURMA = 'rd-estatisticas-turma'
 
-type Aba = 'geral' | 'fundamentos' | 'atletas' | 'rankings' | 'jogos' | 'quadra'
+type Aba = 'geral' | 'fundamentos' | 'tatica' | 'atletas' | 'rankings' | 'jogos' | 'quadra'
 const ABAS: { id: Aba; label: string; Icon: typeof BarChart3 }[] = [
   { id: 'geral', label: 'Visão geral', Icon: BarChart3 },
   { id: 'fundamentos', label: 'Fundamentos', Icon: Target },
+  { id: 'tatica', label: 'Tática', Icon: Brain },
   { id: 'atletas', label: 'Atletas', Icon: Users },
   { id: 'rankings', label: 'Rankings', Icon: Trophy },
   { id: 'jogos', label: 'Jogos', Icon: TrendingUp },
@@ -37,61 +40,11 @@ const PERIODOS: { id: PeriodoEstatistica; label: string }[] = [
   { id: 'ULTIMO', label: 'Último jogo' },
 ]
 
-function corEf(ef: number): string {
-  if (ef >= 50) return 'var(--rd-positivo)'
-  if (ef >= 0) return 'var(--rd-neutro)'
-  return 'var(--rd-erro)'
-}
-function corPct(pct: number): string {
-  if (pct >= 55) return 'var(--rd-positivo)'
-  if (pct >= 40) return 'var(--rd-neutro)'
-  return 'var(--rd-erro)'
-}
-
 function lerTurmaSalva(): string {
   try { return localStorage.getItem(CHAVE_TURMA) ?? '' } catch { return '' }
 }
 function salvarTurma(id: string) {
   try { localStorage.setItem(CHAVE_TURMA, id) } catch { /* sem armazenamento: só não lembra */ }
-}
-
-// ------------------------------------------------------------ peças visuais
-
-function Secao({ titulo, icon, children, dica }: { titulo: string; icon?: ReactNode; children: ReactNode; dica?: string }) {
-  return (
-    <Card>
-      <h2 className="text-sm font-black mb-3 flex items-center gap-2">
-        {icon && <span className="rd-accent-text inline-flex">{icon}</span>}
-        {titulo}
-      </h2>
-      {children}
-      {dica && <p className="text-[11px] text-[var(--rd-text-dim)] mt-3 flex gap-1.5"><Info size={12} className="shrink-0 mt-0.5" />{dica}</p>}
-    </Card>
-  )
-}
-
-function Kpi({ label, valor, sub, cor }: { label: string; valor: ReactNode; sub?: ReactNode; cor?: string }) {
-  return (
-    <div className="rounded-xl border px-3 py-2.5" style={{ borderColor: 'var(--rd-border)' }}>
-      <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--rd-text-dim)]">{label}</div>
-      <div className="text-xl font-black leading-tight mt-0.5 tabular-nums" style={cor ? { color: cor } : undefined}>{valor}</div>
-      {sub && <div className="text-[11px] text-[var(--rd-text-dim)] mt-0.5">{sub}</div>}
-    </div>
-  )
-}
-
-function BarraHorizontal({ label, valor, max, cor, direita }: { label: string; valor: number; max: number; cor: string; direita: ReactNode }) {
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs mb-1 gap-2">
-        <span className="truncate">{label}</span>
-        <span className="font-bold tabular-nums shrink-0">{direita}</span>
-      </div>
-      <div className="h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${max > 0 ? Math.max(3, (valor / max) * 100) : 0}%`, background: cor }} />
-      </div>
-    </div>
-  )
 }
 
 function ListaOrigem({ titulo, itens, total, cor }: { titulo: string; itens: ItemOrigem[]; total: number; cor: string }) {
@@ -610,6 +563,7 @@ export default function Estatisticas() {
         <>
           {aba === 'geral' && <AbaGeral partidas={filtradas} />}
           {aba === 'fundamentos' && <AbaFundamentos sets={sets} />}
+          {aba === 'tatica' && <BlocosTaticos sets={sets} atletas={atletas} />}
           {aba === 'atletas' && <AbaAtletas partidas={filtradas} nomeDe={nomeDe} />}
           {aba === 'rankings' && <AbaRankings partidas={filtradas} nomeDe={nomeDe} />}
           {aba === 'jogos' && <AbaJogos partidas={filtradas} />}

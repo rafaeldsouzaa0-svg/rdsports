@@ -12,6 +12,8 @@ import {
   sideOutBreakPoint, sequenciasDePontos, maiorSequenciaPartida, desempenhoEmPontosDecisivos, impactoSubstituicao, confrontoDireto,
 } from '../scoutEngine'
 import { gerarResumoPartida } from '../resumoAutomatico'
+import BlocosTaticos from '../components/BlocosTaticos'
+import { resumoPlacarSet } from '../analiseAvancada'
 import { gerarHtmlRelatorioPartida, gerarHtmlRelatorioAtleta, baixarHtml, abrirParaImprimir, slugify } from '../htmlReport'
 import type { Partida, SetPartida, Atleta } from '../types'
 
@@ -384,6 +386,18 @@ function LinhaDoTempoPlacar({ pontos }: { pontos: { placarCasa: number; placarAd
   )
 }
 
+/** Viradas, empates e maior vantagem do set (Etapa 1 Data Volley, 27/11/2026). */
+function ResumoPlacar({ set }: { set: SetPartida }) {
+  const r = resumoPlacarSet(set)
+  return (
+    <div className="text-[11px] text-[var(--rd-text-dim)] mb-1.5 flex flex-wrap gap-x-3">
+      <span>Viradas: <b className="text-[var(--rd-text)]">{r.viradas}</b></span>
+      <span>Empates: <b className="text-[var(--rd-text)]">{r.empates}</b></span>
+      <span>Maior vantagem: nossa <b style={{ color: 'var(--rd-positivo)' }}>{r.maiorVantagemNossa}</b> · deles <b style={{ color: 'var(--rd-erro)' }}>{r.maiorVantagemDeles}</b></span>
+    </div>
+  )
+}
+
 function SecaoPontoAPonto({ sets }: { sets: SetPartida[] }) {
   const comPontos = sets.map((s) => ({ set: s, pontos: pontoAPontoDoSet(s) })).filter((x) => x.pontos.length > 0)
   if (comPontos.length === 0) return null
@@ -395,6 +409,7 @@ function SecaoPontoAPonto({ sets }: { sets: SetPartida[] }) {
           <div key={set.id}>
             <div className="text-xs font-bold mb-1.5 rd-accent-text">Set {set.numero}</div>
             <LinhaDoTempoPlacar pontos={pontos} />
+            <ResumoPlacar set={set} />
             <div className="flex flex-wrap gap-1">
               {pontos.map((p) => (
                 <span
@@ -684,6 +699,8 @@ export default function Relatorio() {
       <SecaoComparativoSets todosOsSets={partida.setsPartida} />
 
       <SecaoSideOutBreakPoint sets={setsParaExibir} />
+
+      <div className="mb-5"><BlocosTaticos sets={setsParaExibir} atletas={atletas} /></div>
 
       <SecaoPontosDecisivos sets={setsParaExibir} partida={partida} />
 

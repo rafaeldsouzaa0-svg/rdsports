@@ -755,7 +755,7 @@ export function quadraComLibero(
 /** Quando uma atleta que a líbero substitui sai de quadra numa substituição,
  *  quem entra no lugar dela passa a ser trocada pela líbero (ex.: central
  *  reserva entrando no lugar da central titular). */
-function herdarLibero(substitui: string[], saiId: string | undefined, entraId: string): string[] {
+export function herdarLibero(substitui: string[], saiId: string | undefined, entraId: string): string[] {
   if (!saiId || !substitui.includes(saiId)) return substitui
   return substitui.map((id) => (id === saiId ? entraId : id))
 }
